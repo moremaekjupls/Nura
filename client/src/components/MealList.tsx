@@ -1,0 +1,71 @@
+/**
+ * MealList Component
+ * Displays all meals for a day, grouped by meal type
+ */
+
+import React from 'react';
+import { Entry, MealType } from '@/types';
+import { MealEntry } from './MealEntry';
+import { Card } from '@/components/ui/card';
+
+interface MealListProps {
+  entries: Entry[];
+  onEdit?: (entry: Entry) => void;
+  onDelete?: (id: string) => void;
+}
+
+const mealTypeOrder: MealType[] = ['breakfast', 'lunch', 'dinner', 'snack'];
+const mealTypeLabels: Record<MealType, string> = {
+  breakfast: 'Breakfast',
+  lunch: 'Lunch',
+  dinner: 'Dinner',
+  snack: 'Snacks & Others',
+};
+
+export function MealList({ entries, onEdit, onDelete }: MealListProps) {
+  if (entries.length === 0) {
+    return (
+      <Card className="border-dashed">
+        <div className="p-8 text-center">
+          <p className="text-muted-foreground text-sm">
+            No meals logged yet. Add your first meal to get started!
+          </p>
+        </div>
+      </Card>
+    );
+  }
+
+  // Group entries by meal type
+  const grouped = mealTypeOrder.reduce(
+    (acc, type) => {
+      const mealEntries = entries.filter((e) => (e.mealType || 'snack') === type);
+      if (mealEntries.length > 0) {
+        acc[type] = mealEntries;
+      }
+      return acc;
+    },
+    {} as Record<MealType, Entry[]>
+  );
+
+  return (
+    <div className="space-y-6">
+      {Object.entries(grouped).map(([type, mealEntries]) => (
+        <div key={type}>
+          <h2 className="text-sm font-heading font-semibold text-foreground uppercase tracking-wide mb-3 px-1">
+            {mealTypeLabels[type as MealType]}
+          </h2>
+          <div className="space-y-2">
+            {mealEntries.map((entry) => (
+              <MealEntry
+                key={entry.id}
+                entry={entry}
+                onEdit={onEdit}
+                onDelete={onDelete}
+              />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
