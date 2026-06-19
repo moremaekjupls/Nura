@@ -44,7 +44,7 @@ export function addDaysToISO(dateISO: string, days: number): string {
  * @param dateISO ISO date string (YYYY-MM-DD)
  * @param locale Language locale (default: 'en-US')
  */
-export function formatDate(dateISO: string, locale = 'en-US'): string {
+export function formatDate(dateISO: string, locale = 'ru-RU'): string {
   const [year, month, day] = dateISO.split('-').map(Number);
   const date = new Date(year, month - 1, day);
   return date.toLocaleDateString(locale, {
@@ -59,7 +59,7 @@ export function formatDate(dateISO: string, locale = 'en-US'): string {
  * @param dateISO ISO date string (YYYY-MM-DD)
  * @param locale Language locale (default: 'en-US')
  */
-export function formatDateFull(dateISO: string, locale = 'en-US'): string {
+export function formatDateFull(dateISO: string, locale = 'ru-RU'): string {
   const [year, month, day] = dateISO.split('-').map(Number);
   const date = new Date(year, month - 1, day);
   return date.toLocaleDateString(locale, {
@@ -94,7 +94,7 @@ export function isPast(dateISO: string): boolean {
 /**
  * Get the day of week name
  */
-export function getDayName(dateISO: string, locale = 'en-US'): string {
+export function getDayName(dateISO: string, locale = 'ru-RU'): string {
   const [year, month, day] = dateISO.split('-').map(Number);
   const date = new Date(year, month - 1, day);
   return date.toLocaleDateString(locale, { weekday: 'long' });
@@ -103,7 +103,7 @@ export function getDayName(dateISO: string, locale = 'en-US'): string {
 /**
  * Get short day name (Mon, Tue, etc.)
  */
-export function getShortDayName(dateISO: string, locale = 'en-US'): string {
+export function getShortDayName(dateISO: string, locale = 'ru-RU'): string {
   const [year, month, day] = dateISO.split('-').map(Number);
   const date = new Date(year, month - 1, day);
   return date.toLocaleDateString(locale, { weekday: 'short' });

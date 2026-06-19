@@ -24,10 +24,10 @@ const mealTypeColors: Record<MealType, string> = {
 };
 
 const mealTypeLabels: Record<MealType, string> = {
-  breakfast: 'Breakfast',
-  lunch: 'Lunch',
-  dinner: 'Dinner',
-  snack: 'Snack',
+  breakfast: 'Завтрак',
+  lunch: 'Обед',
+  dinner: 'Ужин',
+  snack: 'Перекус',
 };
 
 export function MealEntry({ entry, onEdit, onDelete }: MealEntryProps) {
@@ -55,27 +55,27 @@ export function MealEntry({ entry, onEdit, onDelete }: MealEntryProps) {
             {/* Macros grid */}
             <div className="grid grid-cols-4 gap-2 mt-3">
               <div className="text-center">
-                <p className="text-xs text-muted-foreground">Cal</p>
+                <p className="text-xs text-muted-foreground">Ккал</p>
                 <p className="text-sm font-semibold text-foreground">
                   {entry.calories}
                 </p>
               </div>
               <div className="text-center">
-                <p className="text-xs text-muted-foreground">P</p>
+                <p className="text-xs text-muted-foreground">Б</p>
                 <p className="text-sm font-semibold text-foreground">
-                  {entry.protein.toFixed(1)}g
+                  {entry.protein.toFixed(1)}г
                 </p>
               </div>
               <div className="text-center">
-                <p className="text-xs text-muted-foreground">F</p>
+                <p className="text-xs text-muted-foreground">Ж</p>
                 <p className="text-sm font-semibold text-foreground">
-                  {entry.fat.toFixed(1)}g
+                  {entry.fat.toFixed(1)}г
                 </p>
               </div>
               <div className="text-center">
-                <p className="text-xs text-muted-foreground">C</p>
+                <p className="text-xs text-muted-foreground">У</p>
                 <p className="text-sm font-semibold text-foreground">
-                  {entry.carbs.toFixed(1)}g
+                  {entry.carbs.toFixed(1)}г
                 </p>
               </div>
             </div>

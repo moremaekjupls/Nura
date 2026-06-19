@@ -4,18 +4,23 @@
  */
 
 import { useEffect, useState, useCallback } from 'react';
-import { DailySummary, Entry, Goal } from '@/types';
+import { DailySummary, Entry, Goal, WaterLog } from '@/types';
 import * as storageService from '@/lib/storageService';
 
 export function useDailyData(date: string) {
   const [summary, setSummary] = useState<DailySummary | null>(null);
+  const [waterLogs, setWaterLogs] = useState<WaterLog[]>([]);
   const [loading, setLoading] = useState(true);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await storageService.getDailySummary(date);
+      const [data, water] = await Promise.all([
+        storageService.getDailySummary(date),
+        storageService.getWaterLogs(date),
+      ]);
       setSummary(data);
+      setWaterLogs(water.logs);
     } catch (error) {
       console.error('Error loading daily data:', error);
     } finally {
@@ -75,13 +80,39 @@ export function useDailyData(date: string) {
     [loadData]
   );
 
+  const addWater = useCallback(
+    async (ml: number) => {
+      try {
+        await storageService.addWater(date, ml);
+        await loadData();
+      } catch (error) {
+        console.error('Error adding water:', error);
+      }
+    },
+    [date, loadData]
+  );
+
+  const removeLastWater = useCallback(async () => {
+    if (waterLogs.length === 0) return;
+    const last = waterLogs[waterLogs.length - 1];
+    try {
+      await storageService.deleteWaterLog(last.id);
+      await loadData();
+    } catch (error) {
+      console.error('Error removing water log:', error);
+    }
+  }, [waterLogs, loadData]);
+
   return {
     summary,
+    waterLogs,
     loading,
     addEntry,
     updateEntry,
     deleteEntry,
     updateGoal,
+    addWater,
+    removeLastWater,
     refresh: loadData,
   };
 }

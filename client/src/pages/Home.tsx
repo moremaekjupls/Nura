@@ -19,7 +19,7 @@ export default function Home() {
   const [showGoalDialog, setShowGoalDialog] = useState(false);
 
   const { logout } = useAuth();
-  const { summary, loading, addEntry, updateEntry, deleteEntry, updateGoal } =
+  const { summary, waterLogs, loading, addEntry, updateEntry, deleteEntry, updateGoal, addWater, removeLastWater } =
     useDailyData(currentDate);
 
   const handleSubmitMeal = (entry: Omit<Entry, 'id'>) => {
@@ -67,16 +67,16 @@ export default function Home() {
           <div className="flex items-center gap-2">
             <Button
               onClick={() => { setEditingEntry(null); setShowAddForm(v => !v); }}
-              className={`rounded-full gap-2 ${showAddForm ? 'bg-muted text-foreground hover:bg-muted/80' : 'bg-primary text-primary-foreground hover:bg-primary/90'}`}
+              className={`hidden sm:inline-flex rounded-full gap-2 ${showAddForm ? 'bg-muted text-foreground hover:bg-muted/80' : 'bg-primary text-primary-foreground hover:bg-primary/90'}`}
             >
               {showAddForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-              <span className="hidden sm:inline">{showAddForm ? 'Закрыть' : 'Добавить'}</span>
+              <span>{showAddForm ? 'Закрыть' : 'Добавить'}</span>
             </Button>
             <Button
               variant="ghost"
               size="icon"
               onClick={() => logout()}
-              className="rounded-full text-gray-400 hover:text-gray-600"
+              className="rounded-full text-muted-foreground hover:text-foreground"
               title="Выйти"
             >
               <LogOut className="w-4 h-4" />
@@ -87,7 +87,14 @@ export default function Home() {
 
       <main className="container py-6 space-y-6">
         <DateNavigator date={currentDate} onDateChange={(d) => { setCurrentDate(d); setShowAddForm(false); }} />
-        <DailySummary summary={summary} onEditGoal={() => setShowGoalDialog(true)} />
+        <DailySummary
+          summary={summary}
+          waterLogs={waterLogs}
+          onEditGoal={() => setShowGoalDialog(true)}
+          onAddWaterCup={() => addWater(250)}
+          onAddWaterCustom={(ml) => addWater(ml)}
+          onUndoWater={removeLastWater}
+        />
 
         {showAddForm && (
           <AddMealForm

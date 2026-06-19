@@ -1,4 +1,4 @@
-import { Entry, Goal, DailySummary } from '@/types';
+import { Entry, Goal, DailySummary, WaterLog } from '@/types';
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -33,6 +33,21 @@ export async function getDailySummary(date: string): Promise<DailySummary> {
 }
 export async function getHistory(from: string, to: string): Promise<DailySummary[]> {
   return apiFetch<DailySummary[]>(`/api/history?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
+}
+
+// ---------------------------------------------------------------------------
+// Water
+// ---------------------------------------------------------------------------
+
+export async function getWaterLogs(date: string): Promise<{ date: string; logs: WaterLog[]; total: number }> {
+  return apiFetch(`/api/water?date=${encodeURIComponent(date)}`);
+}
+export async function addWater(date: string, ml: number): Promise<{ id: string; date: string; ml: number; total: number }> {
+  return apiFetch('/api/water', { method: 'POST', body: JSON.stringify({ date, ml }) });
+}
+export async function deleteWaterLog(id: string): Promise<boolean> {
+  await apiFetch<void>(`/api/water/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  return true;
 }
 
 export interface QuickFood {

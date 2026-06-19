@@ -17,6 +17,14 @@ export interface Goal {
   protein: number;
   fat: number;
   carbs: number;
+  water: number;       // daily goal, ml
+}
+
+export interface WaterLog {
+  id: string;
+  date: string;
+  ml: number;
+  createdAt: string;
 }
 
 export interface DailySummary {
@@ -24,6 +32,7 @@ export interface DailySummary {
   entries: Entry[];
   totals: { calories: number; protein: number; fat: number; carbs: number };
   goal: Goal;
-  remaining: { calories: number; protein: number; fat: number; carbs: number };
+  water: { consumed: number; goal: number };
+  remaining: { calories: number; protein: number; fat: number; carbs: number; water: number };
   isOverGoal: { calories: boolean; protein: boolean; fat: boolean; carbs: boolean };
 }

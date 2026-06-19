@@ -30,6 +30,7 @@ interface Goal {
   protein: number;
   fat: number;
   carbs: number;
+  water: number; // daily water goal, ml
 }
 
 interface DbEntry {
@@ -51,6 +52,7 @@ interface DbGoal {
   protein: number;
   fat: number;
   carbs: number;
+  water_goal_ml: number;
 }
 
 interface DbUser {
@@ -58,6 +60,21 @@ interface DbUser {
   email: string;
   password_hash: string;
   created_at: string;
+}
+
+interface DbWaterLog {
+  id: string;
+  user_id: string;
+  date: string;
+  ml: number;
+  created_at: string;
+}
+
+interface WaterLog {
+  id: string;
+  date: string;
+  ml: number;
+  createdAt: string;
 }
 
 declare global {
@@ -74,7 +91,7 @@ declare global {
 
 const AUTH_COOKIE = 'ct_auth';
 const ONE_YEAR_S = 60 * 60 * 24 * 365;
-const DEFAULT_GOAL: Goal = { calories: 2000, protein: 150, fat: 65, carbs: 250 };
+const DEFAULT_GOAL: Goal = { calories: 2000, protein: 150, fat: 65, carbs: 250, water: 2000 };
 
 // ---------------------------------------------------------------------------
 // Password hashing (Node.js built-in crypto, no external dep)
@@ -134,16 +151,33 @@ function rowToEntry(row: DbEntry): Entry {
   };
 }
 
+function rowToWaterLog(row: DbWaterLog): WaterLog {
+  return { id: row.id, date: row.date, ml: row.ml, createdAt: row.created_at };
+}
+
 function getGoalForUser(userId: string): Goal {
   const row = db
     .prepare('SELECT * FROM goals WHERE user_id = ?')
     .get(userId) as DbGoal | undefined;
   return row
-    ? { calories: row.calories, protein: row.protein, fat: row.fat, carbs: row.carbs }
+    ? {
+        calories: row.calories,
+        protein: row.protein,
+        fat: row.fat,
+        carbs: row.carbs,
+        water: row.water_goal_ml ?? 2000,
+      }
     : DEFAULT_GOAL;
 }
 
-function computeSummary(entries: Entry[], goal: Goal, date: string) {
+function getWaterTotalForDate(userId: string, date: string): number {
+  const row = db
+    .prepare('SELECT COALESCE(SUM(ml), 0) as total FROM water_logs WHERE user_id = ? AND date = ?')
+    .get(userId, date) as { total: number };
+  return row.total;
+}
+
+function computeSummary(entries: Entry[], goal: Goal, date: string, waterConsumed = 0) {
   const totals = entries.reduce(
     (acc, e) => ({
       calories: acc.calories + e.calories,
@@ -159,11 +193,13 @@ function computeSummary(entries: Entry[], goal: Goal, date: string) {
     entries,
     totals,
     goal,
+    water: { consumed: waterConsumed, goal: goal.water },
     remaining: {
       calories: Math.max(0, goal.calories - totals.calories),
       protein: Math.max(0, goal.protein - totals.protein),
       fat: Math.max(0, goal.fat - totals.fat),
       carbs: Math.max(0, goal.carbs - totals.carbs),
+      water: Math.max(0, goal.water - waterConsumed),
     },
     isOverGoal: {
       calories: totals.calories > goal.calories,
@@ -215,12 +251,23 @@ const stmts = {
 
   // goal
   upsertGoal: db.prepare(
-    `INSERT INTO goals (user_id, calories, protein, fat, carbs)
-     VALUES (@user_id, @calories, @protein, @fat, @carbs)
+    `INSERT INTO goals (user_id, calories, protein, fat, carbs, water_goal_ml)
+     VALUES (@user_id, @calories, @protein, @fat, @carbs, @water)
      ON CONFLICT(user_id) DO UPDATE SET
        calories=excluded.calories, protein=excluded.protein,
-       fat=excluded.fat, carbs=excluded.carbs,
+       fat=excluded.fat, carbs=excluded.carbs, water_goal_ml=excluded.water_goal_ml,
        updated_at=datetime('now')`
+  ),
+
+  // water
+  getWaterLogs: db.prepare<[string, string]>(
+    'SELECT * FROM water_logs WHERE user_id = ? AND date = ? ORDER BY created_at'
+  ),
+  insertWaterLog: db.prepare(
+    'INSERT INTO water_logs (id, user_id, date, ml) VALUES (@id, @user_id, @date, @ml)'
+  ),
+  deleteWaterLog: db.prepare<[string, string]>(
+    'DELETE FROM water_logs WHERE id = ? AND user_id = ?'
   ),
 
   // recent / frequent foods
@@ -255,14 +302,14 @@ function requireAuth(req: Request, res: Response, next: NextFunction) {
   const token = cookies[AUTH_COOKIE];
 
   if (!token) {
-    res.status(401).json({ error: 'Not authenticated' });
+    res.status(401).json({ error: 'Не авторизован' });
     return;
   }
 
   const session = stmts.getSession.get(token) as { user_id: string } | undefined;
   if (!session) {
     clearAuthCookie(res);
-    res.status(401).json({ error: 'Session expired' });
+    res.status(401).json({ error: 'Сессия истекла' });
     return;
   }
 
@@ -289,23 +336,23 @@ async function startServer() {
     const { email, password } = req.body as { email?: string; password?: string };
 
     if (!email || !password) {
-      res.status(400).json({ error: 'email and password required' });
+      res.status(400).json({ error: 'Необходимо указать email и пароль' });
       return;
     }
 
     const emailLower = email.toLowerCase().trim();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailLower)) {
-      res.status(400).json({ error: 'Invalid email' });
+      res.status(400).json({ error: 'Некорректный email' });
       return;
     }
     if (password.length < 6) {
-      res.status(400).json({ error: 'Password must be at least 6 characters' });
+      res.status(400).json({ error: 'Пароль должен содержать не менее 6 символов' });
       return;
     }
 
     const existing = stmts.getUserByEmail.get(emailLower) as DbUser | undefined;
     if (existing) {
-      res.status(409).json({ error: 'Email already registered' });
+      res.status(409).json({ error: 'Этот email уже зарегистрирован' });
       return;
     }
 
@@ -327,19 +374,19 @@ async function startServer() {
     const { email, password } = req.body as { email?: string; password?: string };
 
     if (!email || !password) {
-      res.status(400).json({ error: 'email and password required' });
+      res.status(400).json({ error: 'Необходимо указать email и пароль' });
       return;
     }
 
     const user = stmts.getUserByEmail.get(email.toLowerCase().trim()) as DbUser | undefined;
     if (!user) {
-      res.status(401).json({ error: 'Invalid email or password' });
+      res.status(401).json({ error: 'Неверный email или пароль' });
       return;
     }
 
     const valid = verifyPassword(password, user.password_hash);
     if (!valid) {
-      res.status(401).json({ error: 'Invalid email or password' });
+      res.status(401).json({ error: 'Неверный email или пароль' });
       return;
     }
 
@@ -364,7 +411,7 @@ async function startServer() {
   app.get('/api/auth/me', requireAuth, (req: Request, res: Response) => {
     const user = stmts.getUserById.get(req.userId) as { id: string; email: string } | undefined;
     if (!user) {
-      res.status(404).json({ error: 'User not found' });
+      res.status(404).json({ error: 'Пользователь не найден' });
       return;
     }
     res.json(user);
@@ -382,7 +429,7 @@ async function startServer() {
   app.get('/api/admin/users', (req: Request, res: Response) => {
     const adminKey = process.env.ADMIN_KEY || 'calotrack-admin-2024';
     if (req.query.key !== adminKey) {
-      res.status(403).json({ error: 'Forbidden' });
+      res.status(403).json({ error: 'Доступ запрещён' });
       return;
     }
     const users = db.prepare(
@@ -406,7 +453,7 @@ async function startServer() {
   app.get('/api/entries', (req: Request, res: Response) => {
     const { date } = req.query as { date?: string };
     if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      res.status(400).json({ error: 'date query param required (YYYY-MM-DD)' });
+      res.status(400).json({ error: 'Необходимо указать параметр date (YYYY-MM-DD)' });
       return;
     }
     const rows = stmts.getEntries.all(req.userId, date) as DbEntry[];
@@ -418,7 +465,7 @@ async function startServer() {
       req.body as Partial<Entry>;
 
     if (!date || !name || calories == null || protein == null || fat == null || carbs == null) {
-      res.status(400).json({ error: 'date, name, calories, protein, fat, carbs are required' });
+      res.status(400).json({ error: 'Необходимо указать date, name, calories, protein, fat, carbs' });
       return;
     }
 
@@ -444,7 +491,7 @@ async function startServer() {
     const { id } = req.params;
     const existing = stmts.getEntry.get(id, req.userId) as DbEntry | undefined;
     if (!existing) {
-      res.status(404).json({ error: 'Entry not found' });
+      res.status(404).json({ error: 'Запись не найдена' });
       return;
     }
 
@@ -469,7 +516,7 @@ async function startServer() {
   app.delete('/api/entries/:id', (req: Request, res: Response) => {
     const result = stmts.deleteEntry.run(req.params.id, req.userId);
     if (result.changes === 0) {
-      res.status(404).json({ error: 'Entry not found' });
+      res.status(404).json({ error: 'Запись не найдена' });
       return;
     }
     res.status(204).end();
@@ -484,9 +531,9 @@ async function startServer() {
   });
 
   app.put('/api/goal', (req: Request, res: Response) => {
-    const { calories, protein, fat, carbs } = req.body as Partial<Goal>;
+    const { calories, protein, fat, carbs, water } = req.body as Partial<Goal>;
     if (calories == null || protein == null || fat == null || carbs == null) {
-      res.status(400).json({ error: 'calories, protein, fat, carbs are required' });
+      res.status(400).json({ error: 'Необходимо указать calories, protein, fat, carbs' });
       return;
     }
     const goal: Goal = {
@@ -494,9 +541,47 @@ async function startServer() {
       protein: Number(protein),
       fat: Number(fat),
       carbs: Number(carbs),
+      water: water != null ? Number(water) : getGoalForUser(req.userId).water,
     };
     stmts.upsertGoal.run({ user_id: req.userId, ...goal });
     res.json(goal);
+  });
+
+  // -------------------------------------------------------------------------
+  // Water
+  // -------------------------------------------------------------------------
+
+  app.get('/api/water', (req: Request, res: Response) => {
+    const { date } = req.query as { date?: string };
+    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      res.status(400).json({ error: 'Необходимо указать параметр date (YYYY-MM-DD)' });
+      return;
+    }
+    const rows = stmts.getWaterLogs.all(req.userId, date) as DbWaterLog[];
+    const logs = rows.map(rowToWaterLog);
+    const total = logs.reduce((sum, l) => sum + l.ml, 0);
+    res.json({ date, logs, total });
+  });
+
+  app.post('/api/water', (req: Request, res: Response) => {
+    const { date, ml } = req.body as { date?: string; ml?: number };
+    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date) || ml == null || Number(ml) <= 0) {
+      res.status(400).json({ error: 'Необходимо указать date (YYYY-MM-DD) и положительное значение ml' });
+      return;
+    }
+    const id = `water_${Date.now()}_${nanoid(9)}`;
+    stmts.insertWaterLog.run({ id, user_id: req.userId, date, ml: Number(ml) });
+    const total = getWaterTotalForDate(req.userId, date);
+    res.status(201).json({ id, date, ml: Number(ml), total });
+  });
+
+  app.delete('/api/water/:id', (req: Request, res: Response) => {
+    const result = stmts.deleteWaterLog.run(req.params.id, req.userId);
+    if (result.changes === 0) {
+      res.status(404).json({ error: 'Запись о воде не найдена' });
+      return;
+    }
+    res.status(204).end();
   });
 
   // -------------------------------------------------------------------------
@@ -506,11 +591,12 @@ async function startServer() {
   app.get('/api/summary', (req: Request, res: Response) => {
     const { date } = req.query as { date?: string };
     if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      res.status(400).json({ error: 'date query param required (YYYY-MM-DD)' });
+      res.status(400).json({ error: 'Необходимо указать параметр date (YYYY-MM-DD)' });
       return;
     }
     const rows = stmts.getEntries.all(req.userId, date) as DbEntry[];
-    res.json(computeSummary(rows.map(rowToEntry), getGoalForUser(req.userId), date));
+    const waterConsumed = getWaterTotalForDate(req.userId, date);
+    res.json(computeSummary(rows.map(rowToEntry), getGoalForUser(req.userId), date, waterConsumed));
   });
 
   // -------------------------------------------------------------------------
@@ -524,7 +610,7 @@ async function startServer() {
       !/^\d{4}-\d{2}-\d{2}$/.test(from) ||
       !/^\d{4}-\d{2}-\d{2}$/.test(to)
     ) {
-      res.status(400).json({ error: 'from and to query params required (YYYY-MM-DD)' });
+      res.status(400).json({ error: 'Необходимо указать параметры from и to (YYYY-MM-DD)' });
       return;
     }
 
@@ -532,7 +618,7 @@ async function startServer() {
     const toDate = new Date(to);
     const diffDays = Math.round((toDate.getTime() - fromDate.getTime()) / 86400000);
     if (diffDays < 0 || diffDays > 90) {
-      res.status(400).json({ error: 'Range must be 0–90 days' });
+      res.status(400).json({ error: 'Диапазон должен быть от 0 до 90 дней' });
       return;
     }
 

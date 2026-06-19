@@ -78,12 +78,36 @@ db.exec(`
     updated_at TEXT DEFAULT (datetime('now'))
   );
 
+  CREATE TABLE IF NOT EXISTS water_logs (
+    id         TEXT PRIMARY KEY,
+    user_id    TEXT NOT NULL,
+    date       TEXT NOT NULL,
+    ml         REAL NOT NULL,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+
   CREATE INDEX IF NOT EXISTS idx_entries_user_date
     ON entries (user_id, date);
+
+  CREATE INDEX IF NOT EXISTS idx_water_logs_user_date
+    ON water_logs (user_id, date);
 
   CREATE INDEX IF NOT EXISTS idx_sessions_token
     ON sessions (token);
 `);
+
+// ---------------------------------------------------------------------------
+// Migration: add water_goal_ml to goals if it doesn't exist yet
+// (goals table may already exist in production without this column)
+// ---------------------------------------------------------------------------
+
+const goalsInfo = db.prepare("PRAGMA table_info(goals)").all() as { name: string }[];
+const hasWaterGoal = goalsInfo.some((col) => col.name === 'water_goal_ml');
+
+if (!hasWaterGoal) {
+  console.log('[db] Migrating schema: adding goals.water_goal_ml');
+  db.exec(`ALTER TABLE goals ADD COLUMN water_goal_ml REAL NOT NULL DEFAULT 2000;`);
+}
 
 db.pragma('foreign_keys = ON');
 

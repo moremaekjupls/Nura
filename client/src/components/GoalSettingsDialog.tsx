@@ -33,6 +33,7 @@ export function GoalSettingsDialog({
   const [protein, setProtein] = useState(goal.protein.toString());
   const [fat, setFat] = useState(goal.fat.toString());
   const [carbs, setCarbs] = useState(goal.carbs.toString());
+  const [water, setWater] = useState(goal.water.toString());
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   // Update form when goal changes
@@ -41,15 +42,17 @@ export function GoalSettingsDialog({
     setProtein(goal.protein.toString());
     setFat(goal.fat.toString());
     setCarbs(goal.carbs.toString());
+    setWater(goal.water.toString());
   }, [goal, open]);
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
 
-    if (!calories || parseFloat(calories) <= 0) newErrors.calories = 'Valid calories required';
-    if (!protein || parseFloat(protein) < 0) newErrors.protein = 'Valid protein required';
-    if (!fat || parseFloat(fat) < 0) newErrors.fat = 'Valid fat required';
-    if (!carbs || parseFloat(carbs) < 0) newErrors.carbs = 'Valid carbs required';
+    if (!calories || parseFloat(calories) <= 0) newErrors.calories = 'Укажите корректные калории';
+    if (!protein || parseFloat(protein) < 0) newErrors.protein = 'Укажите корректный белок';
+    if (!fat || parseFloat(fat) < 0) newErrors.fat = 'Укажите корректные жиры';
+    if (!carbs || parseFloat(carbs) < 0) newErrors.carbs = 'Укажите корректные углеводы';
+    if (!water || parseFloat(water) <= 0) newErrors.water = 'Укажите корректную цель по воде';
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -63,6 +66,7 @@ export function GoalSettingsDialog({
       protein: parseFloat(protein),
       fat: parseFloat(fat),
       carbs: parseFloat(carbs),
+      water: parseFloat(water),
     });
 
     onOpenChange(false);
@@ -72,16 +76,16 @@ export function GoalSettingsDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="font-heading">Daily Goals</DialogTitle>
+          <DialogTitle className="font-heading">Цели на день</DialogTitle>
           <DialogDescription>
-            Set your daily nutrition targets
+            Задайте дневные цели по питанию
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
           <div>
             <Label htmlFor="goal-calories" className="text-sm font-semibold">
-              Calories *
+              Калории *
             </Label>
             <Input
               id="goal-calories"
@@ -98,7 +102,7 @@ export function GoalSettingsDialog({
           <div className="grid grid-cols-3 gap-3">
             <div>
               <Label htmlFor="goal-protein" className="text-sm font-semibold">
-                Protein (g) *
+                Белки (г) *
               </Label>
               <Input
                 id="goal-protein"
@@ -114,7 +118,7 @@ export function GoalSettingsDialog({
 
             <div>
               <Label htmlFor="goal-fat" className="text-sm font-semibold">
-                Fat (g) *
+                Жиры (г) *
               </Label>
               <Input
                 id="goal-fat"
@@ -130,7 +134,7 @@ export function GoalSettingsDialog({
 
             <div>
               <Label htmlFor="goal-carbs" className="text-sm font-semibold">
-                Carbs (g) *
+                Углеводы (г) *
               </Label>
               <Input
                 id="goal-carbs"
@@ -145,8 +149,24 @@ export function GoalSettingsDialog({
             </div>
           </div>
 
+          <div>
+            <Label htmlFor="goal-water" className="text-sm font-semibold">
+              Вода (мл) *
+            </Label>
+            <Input
+              id="goal-water"
+              type="number"
+              value={water}
+              onChange={(e) => setWater(e.target.value)}
+              className="mt-1"
+              min="0"
+              step="250"
+            />
+            {errors.water && <p className="text-xs text-destructive mt-1">{errors.water}</p>}
+          </div>
+
           <p className="text-xs text-muted-foreground pt-2">
-            These goals apply to all days. You can edit them anytime.
+            Эти цели применяются ко всем дням. Их можно изменить в любой момент.
           </p>
         </div>
 
@@ -155,14 +175,14 @@ export function GoalSettingsDialog({
             onClick={handleSave}
             className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground"
           >
-            Save Goals
+            Сохранить
           </Button>
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}
             className="flex-1"
           >
-            Cancel
+            Отмена
           </Button>
         </div>
       </DialogContent>
