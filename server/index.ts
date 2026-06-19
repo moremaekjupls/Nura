@@ -566,6 +566,29 @@ async function startServer() {
     })));
   });
 
+
+  // -------------------------------------------------------------------------
+  // Admin
+  // -------------------------------------------------------------------------
+
+  app.get('/api/admin/users', (req: Request, res: Response) => {
+    const adminKey = process.env.ADMIN_KEY || 'calotrack-admin-2024';
+    if (req.query.key !== adminKey) {
+      res.status(403).json({ error: 'Forbidden' });
+      return;
+    }
+    const users = db.prepare(
+      `SELECT u.id, u.email, u.created_at,
+              COUNT(e.id) as entry_count,
+              MAX(e.date) as last_entry_date
+       FROM users u
+       LEFT JOIN entries e ON e.user_id = u.id
+       GROUP BY u.id
+       ORDER BY u.created_at DESC`
+    ).all();
+    res.json({ count: (users as any[]).length, users });
+  });
+
   // -------------------------------------------------------------------------
   // Static frontend
   // -------------------------------------------------------------------------
