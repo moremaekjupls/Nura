@@ -348,10 +348,22 @@ export function FoodPickerDialog({ open, onOpenChange, date, onAddBatch }: FoodP
               <div className="mt-3 space-y-2">
                 <Input placeholder="Название" value={pName} onChange={(e) => setPName(e.target.value)} />
                 <div className="grid grid-cols-4 gap-2">
-                  <Input placeholder="Ккал" type="number" min="0" value={pCalories} onChange={(e) => setPCalories(e.target.value)} />
-                  <Input placeholder="Б" type="number" min="0" step="0.1" value={pProtein} onChange={(e) => setPProtein(e.target.value)} />
-                  <Input placeholder="Ж" type="number" min="0" step="0.1" value={pFat} onChange={(e) => setPFat(e.target.value)} />
-                  <Input placeholder="У" type="number" min="0" step="0.1" value={pCarbs} onChange={(e) => setPCarbs(e.target.value)} />
+                  <div>
+                    <Input placeholder="Ккал" type="number" min="0" value={pCalories} onChange={(e) => setPCalories(e.target.value)} />
+                    <p className="text-[10px] text-center text-muted-foreground mt-1">ккал</p>
+                  </div>
+                  <div>
+                    <Input placeholder="Б" type="number" min="0" step="0.1" value={pProtein} onChange={(e) => setPProtein(e.target.value)} />
+                    <p className="text-[10px] text-center text-muted-foreground mt-1">белки, г</p>
+                  </div>
+                  <div>
+                    <Input placeholder="Ж" type="number" min="0" step="0.1" value={pFat} onChange={(e) => setPFat(e.target.value)} />
+                    <p className="text-[10px] text-center text-muted-foreground mt-1">жиры, г</p>
+                  </div>
+                  <div>
+                    <Input placeholder="У" type="number" min="0" step="0.1" value={pCarbs} onChange={(e) => setPCarbs(e.target.value)} />
+                    <p className="text-[10px] text-center text-muted-foreground mt-1">углев., г</p>
+                  </div>
                 </div>
                 <div className="flex gap-2">
                   <Button type="button" size="sm" onClick={handlePhotoAdd} className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground">
@@ -498,10 +510,22 @@ export function FoodPickerDialog({ open, onOpenChange, date, onAddBatch }: FoodP
               <div className="mt-2 space-y-2 bg-muted/40 rounded-xl p-3">
                 <Input placeholder="Название" value={mName} onChange={(e) => setMName(e.target.value)} />
                 <div className="grid grid-cols-4 gap-2">
-                  <Input placeholder="Ккал" type="number" min="0" value={mCalories} onChange={(e) => setMCalories(e.target.value)} />
-                  <Input placeholder="Б" type="number" min="0" step="0.1" value={mProtein} onChange={(e) => setMProtein(e.target.value)} />
-                  <Input placeholder="Ж" type="number" min="0" step="0.1" value={mFat} onChange={(e) => setMFat(e.target.value)} />
-                  <Input placeholder="У" type="number" min="0" step="0.1" value={mCarbs} onChange={(e) => setMCarbs(e.target.value)} />
+                  <div>
+                    <Input placeholder="Ккал" type="number" min="0" value={mCalories} onChange={(e) => setMCalories(e.target.value)} />
+                    <p className="text-[10px] text-center text-muted-foreground mt-1">ккал</p>
+                  </div>
+                  <div>
+                    <Input placeholder="Б" type="number" min="0" step="0.1" value={mProtein} onChange={(e) => setMProtein(e.target.value)} />
+                    <p className="text-[10px] text-center text-muted-foreground mt-1">белки, г</p>
+                  </div>
+                  <div>
+                    <Input placeholder="Ж" type="number" min="0" step="0.1" value={mFat} onChange={(e) => setMFat(e.target.value)} />
+                    <p className="text-[10px] text-center text-muted-foreground mt-1">жиры, г</p>
+                  </div>
+                  <div>
+                    <Input placeholder="У" type="number" min="0" step="0.1" value={mCarbs} onChange={(e) => setMCarbs(e.target.value)} />
+                    <p className="text-[10px] text-center text-muted-foreground mt-1">углев., г</p>
+                  </div>
                 </div>
                 <Button type="button" size="sm" variant="outline" onClick={handleManualAdd} className="w-full">
                   Добавить в список
