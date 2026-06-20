@@ -985,8 +985,32 @@ async function startServer() {
   // -------------------------------------------------------------------------
 
   const staticPath = path.resolve(__dirname, 'public');
-  app.use(express.static(staticPath));
+
+  // Vite's build output is content-hashed (index-XXXXXXXX.js/css) — a new
+  // deploy ships new filenames, so these can be cached by the browser
+  // forever with zero staleness risk. Previously everything served with
+  // 'max-age=0', which forces a revalidation round-trip for every asset on
+  // every single page load — on a slow/high-latency mobile connection that
+  // adds up across the JS bundle, CSS, background photo and icons, and is
+  // very likely the 'грузит долго' users are reporting.
+  app.use(
+    '/assets',
+    express.static(path.join(staticPath, 'assets'), {
+      maxAge: '1y',
+      immutable: true,
+    })
+  );
+
+  // Everything else (images, icons, manifest.json) isn't content-hashed,
+  // so cache for a day rather than forever — still a big win over re-
+  // validating on every load, without risking long-term staleness if an
+  // image is ever swapped in place.
+  app.use(express.static(staticPath, { maxAge: '1d' }));
+
   app.get('*', (_req: Request, res: Response) => {
+    // index.html references the hashed asset filenames, so it must never
+    // be served stale — always revalidate this one.
+    res.setHeader('Cache-Control', 'no-cache');
     res.sendFile(path.join(staticPath, 'index.html'));
   });
 
