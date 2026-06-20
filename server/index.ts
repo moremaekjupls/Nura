@@ -1005,7 +1005,10 @@ async function startServer() {
   // so cache for a day rather than forever — still a big win over re-
   // validating on every load, without risking long-term staleness if an
   // image is ever swapped in place.
-  app.use(express.static(staticPath, { maxAge: '1d' }));
+  // index: false — otherwise express.static intercepts '/' and serves
+  // index.html with this same max-age=1d policy before our catch-all
+  // below (which explicitly sets no-cache) ever runs.
+  app.use(express.static(staticPath, { maxAge: '1d', index: false }));
 
   app.get('*', (_req: Request, res: Response) => {
     // index.html references the hashed asset filenames, so it must never
