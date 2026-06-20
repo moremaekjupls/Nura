@@ -260,7 +260,7 @@ export function FoodPickerDialog({ open, onOpenChange, date, onAddBatch }: FoodP
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[88vh] flex flex-col p-0 gap-0">
+      <DialogContent className="sm:max-w-lg max-h-[88vh] flex flex-col p-0 gap-0 overflow-hidden">
         <DialogHeader className="px-6 pt-6 pb-2">
           <DialogTitle className="font-heading flex items-center gap-2">
             <span className="text-xl">🍽️</span> Добавить продукты
@@ -544,7 +544,7 @@ export function FoodPickerDialog({ open, onOpenChange, date, onAddBatch }: FoodP
         </div>
 
         {/* Sticky footer: live sum + commit */}
-        <div className="border-t border-border px-6 py-4 bg-background/95">
+        <div className="border-t border-white/40 px-6 py-4 bg-white/60 backdrop-blur-xl backdrop-saturate-150">
           {staged.length > 0 && (
             <div className="flex items-center justify-between text-sm mb-3">
               <span className="font-semibold text-foreground">🔥 {Math.round(totals.calories)} ккал</span>

@@ -186,7 +186,7 @@ export function AddMealForm({ date, editingEntry, onSubmit, onCancel }: AddMealF
   ].slice(0, 8);
 
   return (
-    <Card className="border-primary/20 bg-primary/5 animate-scale-in">
+    <Card className="border-primary/30 bg-primary/10 backdrop-blur-xl backdrop-saturate-150 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.55),0_8px_24px_-8px_rgba(0,0,0,0.35)] animate-scale-in">
       <div className="p-6">
         <h2 className="text-lg font-heading font-bold text-foreground mb-4">
           {editingEntry ? 'Редактировать' : 'Добавить приём пищи'}

@@ -11,7 +11,7 @@ export function BottomNav() {
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-sm border-t border-border">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white/55 backdrop-blur-xl backdrop-saturate-150 border-t border-white/30">
       <div className="flex">
         {tabs.map(tab => {
           const active = tab.path === '/' ? location === '/' : location.startsWith(tab.path);
@@ -31,7 +31,7 @@ export function BottomNav() {
         })}
       </div>
       {/* iPhone home indicator safe area */}
-      <div className="h-safe-area-inset-bottom bg-background" />
+      <div className="h-safe-area-inset-bottom bg-white/55" />
     </nav>
   );
 }

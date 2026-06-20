@@ -16,11 +16,13 @@ interface MealEntryProps {
   onDelete?: (id: string) => void;
 }
 
+const GLASS = 'backdrop-blur-xl backdrop-saturate-150 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.45),0_8px_24px_-8px_rgba(0,0,0,0.3)]';
+
 const mealTypeColors: Record<MealType, string> = {
-  breakfast: 'bg-chart-4/20 border-chart-4/30',
-  lunch: 'bg-primary/20 border-primary/30',
-  dinner: 'bg-secondary/20 border-secondary/30',
-  snack: 'bg-chart-2/20 border-chart-2/30',
+  breakfast: `bg-chart-4/25 border-chart-4/40 ${GLASS}`,
+  lunch: `bg-primary/25 border-primary/40 ${GLASS}`,
+  dinner: `bg-secondary/25 border-secondary/40 ${GLASS}`,
+  snack: `bg-chart-2/25 border-chart-2/40 ${GLASS}`,
 };
 
 const mealTypeLabels: Record<MealType, string> = {

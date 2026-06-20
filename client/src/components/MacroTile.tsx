@@ -38,7 +38,11 @@ export function MacroTile({ label, icon: Icon, consumed, goal, unit, color, isOv
   const accent = isOverGoal ? 'var(--destructive)' : colorVar[color];
 
   return (
-    <Card className={cn('relative border-0 shadow-sm animate-fade-in-up overflow-hidden', compact ? 'p-3 sm:p-4' : 'p-4 sm:p-5')}>
+    <Card className={cn(
+      'relative border border-white/40 bg-white/45 backdrop-blur-xl backdrop-saturate-150 animate-fade-in-up overflow-hidden',
+      'shadow-[inset_0_1px_0_0_rgba(255,255,255,0.55),0_8px_24px_-8px_rgba(0,0,0,0.35)]',
+      compact ? 'p-3 sm:p-4' : 'p-4 sm:p-5'
+    )}>
       {sticker && (
         <span
           aria-hidden

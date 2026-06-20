@@ -27,7 +27,7 @@ export default function Auth() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+    <div className="min-h-screen flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="text-center mb-8">
@@ -39,7 +39,7 @@ export default function Auth() {
         </div>
 
         {/* Card */}
-        <div className="bg-card rounded-2xl shadow-sm border border-border p-6">
+        <div className="bg-white/70 backdrop-blur-xl backdrop-saturate-150 rounded-2xl border border-white/50 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.55),0_8px_24px_-8px_rgba(0,0,0,0.3)] p-6">
           {/* Tabs */}
           <div className="flex bg-muted rounded-xl p-1 mb-6">
             <button

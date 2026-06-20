@@ -43,7 +43,7 @@ export function WaterTracker({ consumed, goal, hasLogs, onAddCup, onAddCustom, o
   };
 
   return (
-    <Card className="bg-gradient-to-br from-[color-mix(in_oklch,var(--chart-5)_14%,white)] to-card border-0 shadow-sm p-5 sm:p-6 animate-fade-in-up">
+    <Card className="bg-gradient-to-br from-[color-mix(in_oklch,var(--chart-5)_22%,white)]/60 to-white/45 backdrop-blur-xl backdrop-saturate-150 border border-white/40 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.55),0_8px_24px_-8px_rgba(0,0,0,0.35)] p-5 sm:p-6 animate-fade-in-up">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <div className="w-9 h-9 rounded-full bg-[var(--chart-5)]/15 flex items-center justify-center">

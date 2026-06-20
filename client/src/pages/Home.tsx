@@ -56,16 +56,16 @@ export default function Home() {
 
   if (loading || !summary) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background pb-24">
+    <div className="min-h-screen pb-24">
       {/* Header */}
-      <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border">
+      <header className="sticky top-0 z-40 bg-white/55 backdrop-blur-xl backdrop-saturate-150 border-b border-white/30">
         <div className="container py-4 flex items-center justify-between">
           <h1 className="text-2xl font-display font-bold text-primary">CaloTrack</h1>
           <div className="flex items-center gap-2">
