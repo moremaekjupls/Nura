@@ -64,6 +64,7 @@ interface DbUser {
   height_cm: number | null;
   weight_kg: number | null;
   birth_year: number | null;
+  gender: string | null;
 }
 
 interface DbWaterLog {
@@ -230,11 +231,11 @@ const stmts = {
   // auth
   getUserByEmail: db.prepare<[string]>('SELECT * FROM users WHERE email = ?'),
   getUserById: db.prepare<[string]>(
-    'SELECT id, email, created_at, name, height_cm, weight_kg, birth_year FROM users WHERE id = ?'
+    'SELECT id, email, created_at, name, height_cm, weight_kg, birth_year, gender FROM users WHERE id = ?'
   ),
   updateProfile: db.prepare(
     `UPDATE users SET name = @name, height_cm = @height_cm, weight_kg = @weight_kg,
-     birth_year = @birth_year WHERE id = @id`
+     birth_year = @birth_year, gender = @gender WHERE id = @id`
   ),
   insertUser: db.prepare(
     'INSERT INTO users (id, email, password_hash) VALUES (@id, @email, @password_hash)'
@@ -695,6 +696,7 @@ async function startServer() {
       heightCm: row.height_cm,
       weightKg: row.weight_kg,
       birthYear: row.birth_year,
+      gender: row.gender,
     };
   }
 
@@ -708,11 +710,12 @@ async function startServer() {
   });
 
   app.put('/api/profile', (req: Request, res: Response) => {
-    const { name, heightCm, weightKg, birthYear } = req.body as {
+    const { name, heightCm, weightKg, birthYear, gender } = req.body as {
       name?: string | null;
       heightCm?: number | null;
       weightKg?: number | null;
       birthYear?: number | null;
+      gender?: string | null;
     };
 
     const currentYear = new Date().getFullYear();
@@ -728,6 +731,10 @@ async function startServer() {
       res.status(400).json({ error: 'Некорректный год рождения' });
       return;
     }
+    if (gender != null && gender !== 'male' && gender !== 'female') {
+      res.status(400).json({ error: 'Некорректный пол' });
+      return;
+    }
 
     stmts.updateProfile.run({
       id: req.userId,
@@ -735,6 +742,7 @@ async function startServer() {
       height_cm: heightCm != null ? Number(heightCm) : null,
       weight_kg: weightKg != null ? Number(weightKg) : null,
       birth_year: birthYear != null ? Number(birthYear) : null,
+      gender: gender ?? null,
     });
 
     const updated = stmts.getUserById.get(req.userId) as DbUser;

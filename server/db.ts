@@ -132,6 +132,10 @@ if (!userCols.has('birth_year')) {
   console.log('[db] Migrating schema: adding users.birth_year');
   db.exec(`ALTER TABLE users ADD COLUMN birth_year INTEGER;`);
 }
+if (!userCols.has('gender')) {
+  console.log('[db] Migrating schema: adding users.gender');
+  db.exec(`ALTER TABLE users ADD COLUMN gender TEXT;`);
+}
 
 db.pragma('foreign_keys = ON');
 

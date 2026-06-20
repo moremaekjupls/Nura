@@ -12,6 +12,8 @@ export interface Entry {
   time?: string;       // HH:MM
 }
 
+export type Gender = 'male' | 'female';
+
 export interface Profile {
   id: string;
   email: string;
@@ -19,6 +21,7 @@ export interface Profile {
   heightCm: number | null;
   weightKg: number | null;
   birthYear: number | null;
+  gender: Gender | null;
 }
 
 export interface Goal {
