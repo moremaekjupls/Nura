@@ -86,6 +86,19 @@ db.exec(`
     created_at TEXT DEFAULT (datetime('now'))
   );
 
+  CREATE TABLE IF NOT EXISTS rate_limits (
+    key        TEXT PRIMARY KEY,
+    count      INTEGER NOT NULL DEFAULT 0,
+    reset_at   INTEGER NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS ai_usage (
+    user_id    TEXT NOT NULL,
+    date       TEXT NOT NULL,
+    count      INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, date)
+  );
+
   CREATE INDEX IF NOT EXISTS idx_entries_user_date
     ON entries (user_id, date);
 

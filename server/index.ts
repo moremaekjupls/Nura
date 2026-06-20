@@ -310,33 +310,47 @@ const stmts = {
   entriesForRange: db.prepare<[string, string, string]>(
     `SELECT * FROM entries WHERE user_id = ? AND date >= ? AND date <= ? ORDER BY date, COALESCE(time, '99:99'), id`
   ),
+
+  // rate limiting (persisted so it survives deploys/restarts)
+  getRateLimit: db.prepare<[string]>('SELECT * FROM rate_limits WHERE key = ?'),
+  upsertRateLimit: db.prepare(
+    `INSERT INTO rate_limits (key, count, reset_at) VALUES (@key, @count, @reset_at)
+     ON CONFLICT(key) DO UPDATE SET count = @count, reset_at = @reset_at`
+  ),
+
+  // per-user daily cap on AI photo analysis (shared free-tier quota protection)
+  getAiUsage: db.prepare<[string, string]>('SELECT * FROM ai_usage WHERE user_id = ? AND date = ?'),
+  upsertAiUsage: db.prepare(
+    `INSERT INTO ai_usage (user_id, date, count) VALUES (@user_id, @date, @count)
+     ON CONFLICT(user_id, date) DO UPDATE SET count = @count`
+  ),
 };
 
 // ---------------------------------------------------------------------------
-// Lightweight in-memory rate limiting for auth-sensitive endpoints.
-// Resets on deploy/restart — that's an acceptable trade-off for this app's
-// scale and avoids pulling in a new dependency (and re-touching the pnpm
-// lockfile, which has broken Railway builds before).
+// Rate limiting for auth-sensitive endpoints, persisted in SQLite so it
+// survives deploys/restarts (an in-memory Map reset every time we shipped
+// a change, which made it close to useless against a sustained attacker —
+// no new dependency needed, the app already has a database).
 // ---------------------------------------------------------------------------
 
-const rateLimitHits = new Map<string, { count: number; resetAt: number }>();
 const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
 const RATE_LIMIT_MAX = 20;
 
 function rateLimit(req: Request, res: Response, next: NextFunction) {
   const key = req.ip || 'unknown';
   const now = Date.now();
-  const entry = rateLimitHits.get(key);
-  if (!entry || entry.resetAt < now) {
-    rateLimitHits.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+  const existing = stmts.getRateLimit.get(key) as { key: string; count: number; reset_at: number } | undefined;
+
+  if (!existing || existing.reset_at < now) {
+    stmts.upsertRateLimit.run({ key, count: 1, reset_at: now + RATE_LIMIT_WINDOW_MS });
     next();
     return;
   }
-  if (entry.count >= RATE_LIMIT_MAX) {
+  if (existing.count >= RATE_LIMIT_MAX) {
     res.status(429).json({ error: 'Слишком много попыток. Попробуйте позже.' });
     return;
   }
-  entry.count += 1;
+  stmts.upsertRateLimit.run({ key, count: existing.count + 1, reset_at: existing.reset_at });
   next();
 }
 
@@ -516,10 +530,24 @@ async function startServer() {
     return JSON.parse(cleaned);
   }
 
+  const AI_DAILY_LIMIT_PER_USER = 20;
+
   app.post('/api/analyze-meal-photo', async (req: Request, res: Response) => {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       res.status(503).json({ error: 'Анализ фото временно недоступен (не настроен API-ключ)' });
+      return;
+    }
+
+    // The Gemini quota is shared across every user of the app — cap each
+    // user's daily usage so one heavy user can't exhaust it for everyone.
+    const today = new Date().toISOString().slice(0, 10);
+    const usage = stmts.getAiUsage.get(req.userId, today) as { count: number } | undefined;
+    const usedToday = usage?.count ?? 0;
+    if (usedToday >= AI_DAILY_LIMIT_PER_USER) {
+      res.status(429).json({
+        error: `Дневной лимит анализа фото (${AI_DAILY_LIMIT_PER_USER}) исчерпан. Попробуйте завтра или введите данные вручную.`,
+      });
       return;
     }
 
@@ -528,6 +556,8 @@ async function startServer() {
       res.status(400).json({ error: 'Необходимо передать фото (base64) в поле image' });
       return;
     }
+
+    stmts.upsertAiUsage.run({ user_id: req.userId, date: today, count: usedToday + 1 });
 
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
     const type = allowedTypes.includes(mediaType || '') ? (mediaType as string) : 'image/jpeg';
