@@ -19,6 +19,7 @@ interface MacroTileProps {
   unit: string;
   color: MacroColor;
   isOverGoal?: boolean;
+  sticker?: string;
 }
 
 const colorVar: Record<MacroColor, string> = {
@@ -28,13 +29,21 @@ const colorVar: Record<MacroColor, string> = {
   protein: 'var(--secondary)',
 };
 
-export function MacroTile({ label, icon: Icon, consumed, goal, unit, color, isOverGoal }: MacroTileProps) {
+export function MacroTile({ label, icon: Icon, consumed, goal, unit, color, isOverGoal, sticker }: MacroTileProps) {
   const percent = goal > 0 ? Math.round((consumed / goal) * 100) : 0;
   const barWidth = Math.min(100, percent);
   const accent = isOverGoal ? 'var(--destructive)' : colorVar[color];
 
   return (
-    <Card className="border-0 shadow-sm p-4 sm:p-5 animate-fade-in-up">
+    <Card className="relative border-0 shadow-sm p-4 sm:p-5 animate-fade-in-up overflow-hidden">
+      {sticker && (
+        <span
+          aria-hidden
+          className="absolute -top-1.5 -right-1.5 text-2xl rotate-[12deg] select-none opacity-90"
+        >
+          {sticker}
+        </span>
+      )}
       <div className="flex items-center justify-between mb-3">
         <span className="text-sm font-medium text-muted-foreground">{label}</span>
         <div

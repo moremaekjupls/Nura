@@ -33,8 +33,8 @@ export function DailySummary({
     <div className="space-y-4 animate-fade-in-up">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-display font-bold text-foreground">
-            Сегодня
+          <h1 className="text-2xl sm:text-3xl font-display font-bold text-foreground flex items-center gap-2">
+            Сегодня <span className="text-2xl">📅</span>
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
             {formatDateFull(summary.date)}
@@ -59,6 +59,7 @@ export function DailySummary({
           unit=""
           color="calories"
           isOverGoal={summary.isOverGoal.calories}
+          sticker="🔥"
         />
         <MacroTile
           label="Углеводы"
@@ -68,6 +69,7 @@ export function DailySummary({
           unit="г"
           color="carbs"
           isOverGoal={summary.isOverGoal.carbs}
+          sticker="🌾"
         />
         <MacroTile
           label="Жиры"
@@ -77,6 +79,7 @@ export function DailySummary({
           unit="г"
           color="fat"
           isOverGoal={summary.isOverGoal.fat}
+          sticker="🥑"
         />
         <MacroTile
           label="Белки"
@@ -86,6 +89,7 @@ export function DailySummary({
           unit="г"
           color="protein"
           isOverGoal={summary.isOverGoal.protein}
+          sticker="🍗"
         />
       </div>
 

@@ -24,10 +24,10 @@ const mealTypeColors: Record<MealType, string> = {
 };
 
 const mealTypeLabels: Record<MealType, string> = {
-  breakfast: 'Завтрак',
-  lunch: 'Обед',
-  dinner: 'Ужин',
-  snack: 'Перекус',
+  breakfast: '🍳 Завтрак',
+  lunch: '🍲 Обед',
+  dinner: '🌙 Ужин',
+  snack: '🍪 Перекус',
 };
 
 export function MealEntry({ entry, onEdit, onDelete }: MealEntryProps) {

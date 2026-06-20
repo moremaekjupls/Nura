@@ -44,6 +44,20 @@ export function useDailyData(date: string) {
     [loadData]
   );
 
+  // Add several entries in one go, then refresh the summary exactly once
+  // (used by the food-picker dialog when committing a multi-item selection).
+  const addEntries = useCallback(
+    async (entries: Omit<Entry, 'id'>[]) => {
+      try {
+        await Promise.all(entries.map((entry) => storageService.addEntry(entry)));
+        await loadData();
+      } catch (error) {
+        console.error('Error adding entries:', error);
+      }
+    },
+    [loadData]
+  );
+
   const updateEntry = useCallback(
     async (id: string, updates: Partial<Entry>) => {
       try {
@@ -108,6 +122,7 @@ export function useDailyData(date: string) {
     waterLogs,
     loading,
     addEntry,
+    addEntries,
     updateEntry,
     deleteEntry,
     updateGoal,

@@ -16,10 +16,10 @@ interface MealListProps {
 
 const mealTypeOrder: MealType[] = ['breakfast', 'lunch', 'dinner', 'snack'];
 const mealTypeLabels: Record<MealType, string> = {
-  breakfast: 'Завтрак',
-  lunch: 'Обед',
-  dinner: 'Ужин',
-  snack: 'Перекусы и другое',
+  breakfast: '🍳 Завтрак',
+  lunch: '🍲 Обед',
+  dinner: '🌙 Ужин',
+  snack: '🍪 Перекусы и другое',
 };
 
 export function MealList({ entries, onEdit, onDelete }: MealListProps) {
@@ -27,6 +27,7 @@ export function MealList({ entries, onEdit, onDelete }: MealListProps) {
     return (
       <Card className="border-dashed">
         <div className="p-8 text-center">
+          <div className="text-5xl mb-3">🥗</div>
           <p className="text-muted-foreground text-sm">
             Пока нет ни одного приёма пищи. Добавьте первый, чтобы начать!
           </p>

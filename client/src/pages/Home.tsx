@@ -5,49 +5,53 @@ import { Entry } from '@/types';
 import { DailySummary } from '@/components/DailySummary';
 import { MealList } from '@/components/MealList';
 import { AddMealForm } from '@/components/AddMealForm';
+import { FoodPickerDialog } from '@/components/FoodPickerDialog';
 import { DateNavigator } from '@/components/DateNavigator';
 import { GoalSettingsDialog } from '@/components/GoalSettingsDialog';
 import { Button } from '@/components/ui/button';
-import { Plus, X, LogOut } from 'lucide-react';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Plus, LogOut } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function Home() {
   const [currentDate, setCurrentDate] = useState(getTodayISO());
-  const [showAddForm, setShowAddForm] = useState(false);
+  const [showPicker, setShowPicker] = useState(false);
   const [editingEntry, setEditingEntry] = useState<Entry | null>(null);
   const [showGoalDialog, setShowGoalDialog] = useState(false);
 
   const { logout } = useAuth();
-  const { summary, waterLogs, loading, addEntry, updateEntry, deleteEntry, updateGoal, addWater, removeLastWater } =
-    useDailyData(currentDate);
+  const {
+    summary,
+    waterLogs,
+    loading,
+    addEntries,
+    updateEntry,
+    deleteEntry,
+    updateGoal,
+    addWater,
+    removeLastWater,
+  } = useDailyData(currentDate);
 
-  const handleSubmitMeal = (entry: Omit<Entry, 'id'>) => {
-    if (editingEntry) {
-      updateEntry(editingEntry.id, entry);
-      toast.success('Запись обновлена');
-      setEditingEntry(null);
-    } else {
-      addEntry(entry);
-      toast.success('Добавлено');
-    }
-    setShowAddForm(false);
+  const handleAddBatch = async (entries: Omit<Entry, 'id'>[]) => {
+    await addEntries(entries);
+    toast.success(entries.length > 1 ? `Добавлено ${entries.length} позиции` : 'Добавлено');
+  };
+
+  const handleUpdateMeal = (entry: Omit<Entry, 'id'>) => {
+    if (!editingEntry) return;
+    updateEntry(editingEntry.id, entry);
+    toast.success('Запись обновлена');
+    setEditingEntry(null);
   };
 
   const handleEditMeal = (entry: Entry) => {
     setEditingEntry(entry);
-    setShowAddForm(true);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleDeleteMeal = (id: string) => {
     deleteEntry(id);
     toast.success('Удалено');
-  };
-
-  const handleCancelEdit = () => {
-    setEditingEntry(null);
-    setShowAddForm(false);
   };
 
   if (loading || !summary) {
@@ -66,11 +70,11 @@ export default function Home() {
           <h1 className="text-2xl font-display font-bold text-primary">CaloTrack</h1>
           <div className="flex items-center gap-2">
             <Button
-              onClick={() => { setEditingEntry(null); setShowAddForm(v => !v); }}
-              className={`hidden sm:inline-flex rounded-full gap-2 ${showAddForm ? 'bg-muted text-foreground hover:bg-muted/80' : 'bg-primary text-primary-foreground hover:bg-primary/90'}`}
+              onClick={() => setShowPicker(true)}
+              className="hidden sm:inline-flex rounded-full gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
             >
-              {showAddForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-              <span>{showAddForm ? 'Закрыть' : 'Добавить'}</span>
+              <Plus className="w-4 h-4" />
+              <span>Добавить</span>
             </Button>
             <Button
               variant="ghost"
@@ -86,7 +90,7 @@ export default function Home() {
       </header>
 
       <main className="container py-6 space-y-6">
-        <DateNavigator date={currentDate} onDateChange={(d) => { setCurrentDate(d); setShowAddForm(false); }} />
+        <DateNavigator date={currentDate} onDateChange={(d) => setCurrentDate(d)} />
         <DailySummary
           summary={summary}
           waterLogs={waterLogs}
@@ -96,18 +100,9 @@ export default function Home() {
           onUndoWater={removeLastWater}
         />
 
-        {showAddForm && (
-          <AddMealForm
-            date={currentDate}
-            editingEntry={editingEntry}
-            onSubmit={handleSubmitMeal}
-            onCancel={handleCancelEdit}
-          />
-        )}
-
         <div>
           <h2 className="text-lg font-heading font-bold text-foreground mb-4">
-            {summary.entries.length > 0 ? 'Приёмы пищи' : 'Нет записей'}
+            {summary.entries.length > 0 ? 'Приёмы пищи' : '🍽️ Нет записей'}
           </h2>
           <MealList
             entries={summary.entries}
@@ -117,15 +112,36 @@ export default function Home() {
         </div>
       </main>
 
-      {/* Mobile FAB */}
+      {/* Mobile FAB — opens the same central dialog, no more bottom sheet */}
       <div className="fixed bottom-20 right-4 sm:hidden">
         <Button
-          onClick={() => { setEditingEntry(null); setShowAddForm(v => !v); }}
+          onClick={() => setShowPicker(true)}
           className="rounded-full h-14 w-14 shadow-lg bg-primary hover:bg-primary/90 text-primary-foreground"
         >
-          {showAddForm ? <X className="w-6 h-6" /> : <Plus className="w-6 h-6" />}
+          <Plus className="w-6 h-6" />
         </Button>
       </div>
+
+      <FoodPickerDialog
+        open={showPicker}
+        onOpenChange={setShowPicker}
+        date={currentDate}
+        onAddBatch={handleAddBatch}
+      />
+
+      {/* Editing an existing entry still uses the detailed manual form, now as a centered dialog */}
+      <Dialog open={!!editingEntry} onOpenChange={(open) => !open && setEditingEntry(null)}>
+        <DialogContent className="sm:max-w-md p-0 [&>button]:z-10">
+          {editingEntry && (
+            <AddMealForm
+              date={currentDate}
+              editingEntry={editingEntry}
+              onSubmit={handleUpdateMeal}
+              onCancel={() => setEditingEntry(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       <GoalSettingsDialog
         open={showGoalDialog}
