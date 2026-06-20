@@ -12,21 +12,28 @@ export function useDailyData(date: string) {
   const [waterLogs, setWaterLogs] = useState<WaterLog[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [data, water] = await Promise.all([
-        storageService.getDailySummary(date),
-        storageService.getWaterLogs(date),
-      ]);
-      setSummary(data);
-      setWaterLogs(water.logs);
-    } catch (error) {
-      console.error('Error loading daily data:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [date]);
+  // `silent` skips the loading flag so mutations (add/edit/delete entry,
+  // water, goal) refresh data in the background without flashing the
+  // full-page spinner — that flash was reading to users as the whole
+  // site reloading on every action.
+  const loadData = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      if (!opts?.silent) setLoading(true);
+      try {
+        const [data, water] = await Promise.all([
+          storageService.getDailySummary(date),
+          storageService.getWaterLogs(date),
+        ]);
+        setSummary(data);
+        setWaterLogs(water.logs);
+      } catch (error) {
+        console.error('Error loading daily data:', error);
+      } finally {
+        if (!opts?.silent) setLoading(false);
+      }
+    },
+    [date]
+  );
 
   useEffect(() => {
     loadData();
@@ -36,7 +43,7 @@ export function useDailyData(date: string) {
     async (entry: Omit<Entry, 'id'>) => {
       try {
         await storageService.addEntry(entry);
-        await loadData();
+        await loadData({ silent: true });
       } catch (error) {
         console.error('Error adding entry:', error);
       }
@@ -50,7 +57,7 @@ export function useDailyData(date: string) {
     async (entries: Omit<Entry, 'id'>[]) => {
       try {
         await Promise.all(entries.map((entry) => storageService.addEntry(entry)));
-        await loadData();
+        await loadData({ silent: true });
       } catch (error) {
         console.error('Error adding entries:', error);
       }
@@ -62,7 +69,7 @@ export function useDailyData(date: string) {
     async (id: string, updates: Partial<Entry>) => {
       try {
         await storageService.updateEntry(id, updates);
-        await loadData();
+        await loadData({ silent: true });
       } catch (error) {
         console.error('Error updating entry:', error);
       }
@@ -74,7 +81,7 @@ export function useDailyData(date: string) {
     async (id: string) => {
       try {
         await storageService.deleteEntry(id);
-        await loadData();
+        await loadData({ silent: true });
       } catch (error) {
         console.error('Error deleting entry:', error);
       }
@@ -86,7 +93,7 @@ export function useDailyData(date: string) {
     async (goal: Goal) => {
       try {
         await storageService.setGoal(goal);
-        await loadData();
+        await loadData({ silent: true });
       } catch (error) {
         console.error('Error updating goal:', error);
       }
@@ -98,7 +105,7 @@ export function useDailyData(date: string) {
     async (ml: number) => {
       try {
         await storageService.addWater(date, ml);
-        await loadData();
+        await loadData({ silent: true });
       } catch (error) {
         console.error('Error adding water:', error);
       }
@@ -111,7 +118,7 @@ export function useDailyData(date: string) {
     const last = waterLogs[waterLogs.length - 1];
     try {
       await storageService.deleteWaterLog(last.id);
-      await loadData();
+      await loadData({ silent: true });
     } catch (error) {
       console.error('Error removing water log:', error);
     }
