@@ -1,6 +1,6 @@
 {
-  "name": "CaloTrack",
-  "short_name": "CaloTrack",
+  "name": "Nura",
+  "short_name": "Nura",
   "description": "Track your daily calories and macros",
   "start_url": "/",
   "display": "standalone",

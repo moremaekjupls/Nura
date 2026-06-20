@@ -802,7 +802,7 @@ async function startServer() {
 
   const port = process.env.PORT || 3000;
   server.listen(port, () => {
-    console.log(`CaloTrack server running on http://localhost:${port}/`);
+    console.log(`Nura server running on http://localhost:${port}/`);
   });
 }
 

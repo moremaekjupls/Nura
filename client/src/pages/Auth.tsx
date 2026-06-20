@@ -34,7 +34,7 @@ export default function Auth() {
           <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
             <span className="text-primary-foreground text-2xl font-bold">C</span>
           </div>
-          <h1 className="text-2xl font-display font-bold text-foreground">CaloTrack</h1>
+          <h1 className="text-2xl font-display font-bold text-foreground">Nura</h1>
           <p className="text-muted-foreground text-sm mt-1">Считай калории легко</p>
         </div>
 
