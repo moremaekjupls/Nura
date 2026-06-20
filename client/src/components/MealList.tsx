@@ -52,7 +52,7 @@ export function MealList({ entries, onEdit, onDelete }: MealListProps) {
     <div className="space-y-6">
       {Object.entries(grouped).map(([type, mealEntries]) => (
         <div key={type}>
-          <h2 className="text-sm font-heading font-semibold text-foreground uppercase tracking-wide mb-3 px-1">
+          <h2 className="text-sm font-heading font-semibold text-white uppercase tracking-wide mb-3 px-1 drop-shadow-[0_1px_3px_rgba(0,0,0,0.5)]">
             {mealTypeLabels[type as MealType]}
           </h2>
           <div className="space-y-2">

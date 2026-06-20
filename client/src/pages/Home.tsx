@@ -107,7 +107,7 @@ export default function Home() {
           />
 
           <div>
-            <h2 className="text-lg font-heading font-bold text-foreground mb-4">
+            <h2 className="text-lg font-heading font-bold text-white mb-4 drop-shadow-[0_1px_4px_rgba(0,0,0,0.5)]">
               {summary.entries.length > 0 ? 'Приёмы пищи' : '🍽️ Нет записей'}
             </h2>
             <MealList
