@@ -101,7 +101,7 @@ export default function Home() {
           <div className="absolute inset-0 bg-gradient-to-b from-[color-mix(in_oklch,var(--primary)_28%,transparent)] via-transparent to-background" />
         </div>
 
-        <div className="container space-y-6 -mt-12 relative z-10 pb-2">
+        <div className="container space-y-6 -mt-12 relative pb-2">
           <div className="glass rounded-2xl p-3">
             <DateNavigator date={currentDate} onDateChange={(d) => setCurrentDate(d)} />
           </div>
@@ -129,7 +129,7 @@ export default function Home() {
       </main>
 
       {/* Mobile FAB — opens the same central dialog, no more bottom sheet */}
-      <div className="fixed bottom-20 right-4 sm:hidden">
+      <div className="fixed bottom-20 right-4 sm:hidden z-50">
         <Button
           onClick={() => setShowPicker(true)}
           className="rounded-full h-14 w-14 shadow-lg bg-primary hover:bg-primary/90 text-primary-foreground"
