@@ -4,6 +4,10 @@
  * items in one sitting — Uzbek-cuisine presets, recent/frequent foods, an
  * Open Food Facts search, or a manual entry — with a live running total,
  * then commits everything in a single batch instead of one-at-a-time.
+ *
+ * Each staged item stores BASE nutrition (per one unit/portion/100g) plus a
+ * `quantity` multiplier, so "3 яйца" or "2 порции плова" compute their kcal
+ * and BJU automatically instead of requiring the user to do the math.
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
@@ -21,7 +25,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { getRecentFoods, getFrequentFoods, QuickFood, analyzeMealPhoto, PhotoAnalysisResult } from '@/lib/storageService';
 import { uzbekFoods } from '@/data/uzbekFoods';
-import { X, Search, Plus, ChefHat, Clock, ListPlus, Camera, Loader2, AlertCircle, Sparkles } from 'lucide-react';
+import { X, Search, Plus, Minus, ChefHat, Clock, ListPlus, Camera, Loader2, AlertCircle, Sparkles } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
 // Open Food Facts search (same endpoint as before, no autofill — adds directly)
@@ -53,18 +57,26 @@ async function searchFoodFacts(query: string): Promise<OFFProduct[]> {
 }
 
 // ---------------------------------------------------------------------------
-// Staged item = something the user has picked but not yet saved
+// Staged item = something the user has picked but not yet saved.
+// Nutrition is stored as a BASE (per one unit/portion/100g) so it can be
+// multiplied live by `quantity` without losing the original per-unit values.
 // ---------------------------------------------------------------------------
 
 interface StagedItem {
   key: string;
   emoji?: string;
   name: string;
-  calories: number;
-  protein: number;
-  fat: number;
-  carbs: number;
+  baseCalories: number;
+  baseProtein: number;
+  baseFat: number;
+  baseCarbs: number;
+  quantity: number;
+  unitLabel: string; // human-readable unit, e.g. "порция", "100 г", "350 г"
   mealType: MealType;
+}
+
+function formatQty(q: number): string {
+  return q % 1 === 0 ? String(q) : q.toFixed(1);
 }
 
 const mealTypeLabels: Record<MealType, string> = {
@@ -99,6 +111,7 @@ export function FoodPickerDialog({ open, onOpenChange, date, onAddBatch }: FoodP
   // Manual entry
   const [showManual, setShowManual] = useState(false);
   const [mName, setMName] = useState('');
+  const [mQuantity, setMQuantity] = useState('1');
   const [mCalories, setMCalories] = useState('');
   const [mProtein, setMProtein] = useState('');
   const [mFat, setMFat] = useState('');
@@ -126,7 +139,7 @@ export function FoodPickerDialog({ open, onOpenChange, date, onAddBatch }: FoodP
       setQuery('');
       setSearchResults([]);
       setShowManual(false);
-      setMName(''); setMCalories(''); setMProtein(''); setMFat(''); setMCarbs('');
+      setMName(''); setMQuantity('1'); setMCalories(''); setMProtein(''); setMFat(''); setMCarbs('');
       resetPhoto();
     }
   }, [open]);
@@ -174,10 +187,12 @@ export function FoodPickerDialog({ open, onOpenChange, date, onAddBatch }: FoodP
     addToStaged({
       emoji: '🤖',
       name: pName.trim(),
-      calories,
-      protein: parseFloat(pProtein) || 0,
-      fat: parseFloat(pFat) || 0,
-      carbs: parseFloat(pCarbs) || 0,
+      baseCalories: calories,
+      baseProtein: parseFloat(pProtein) || 0,
+      baseFat: parseFloat(pFat) || 0,
+      baseCarbs: parseFloat(pCarbs) || 0,
+      quantity: 1,
+      unitLabel: 'порция',
       mealType: defaultMealType,
     });
     resetPhoto();
@@ -206,27 +221,38 @@ export function FoodPickerDialog({ open, onOpenChange, date, onAddBatch }: FoodP
     setStaged((prev) => prev.filter((s) => s.key !== key));
   };
 
+  const updateStagedQuantity = (key: string, quantity: number) => {
+    const clamped = Math.max(0.5, Math.round(quantity * 2) / 2);
+    setStaged((prev) => prev.map((s) => (s.key === key ? { ...s, quantity: clamped } : s)));
+  };
+
+  const mQuantityNum = parseFloat(mQuantity) || 1;
+  const mCaloriesNum = parseFloat(mCalories) || 0;
+
   const handleManualAdd = () => {
     const calories = parseFloat(mCalories);
-    if (!mName.trim() || !calories || calories < 0) return;
+    const quantity = parseFloat(mQuantity) || 1;
+    if (!mName.trim() || !calories || calories < 0 || quantity <= 0) return;
     addToStaged({
       emoji: '📝',
       name: mName.trim(),
-      calories,
-      protein: parseFloat(mProtein) || 0,
-      fat: parseFloat(mFat) || 0,
-      carbs: parseFloat(mCarbs) || 0,
+      baseCalories: calories,
+      baseProtein: parseFloat(mProtein) || 0,
+      baseFat: parseFloat(mFat) || 0,
+      baseCarbs: parseFloat(mCarbs) || 0,
+      quantity,
+      unitLabel: 'порция',
       mealType: defaultMealType,
     });
-    setMName(''); setMCalories(''); setMProtein(''); setMFat(''); setMCarbs('');
+    setMName(''); setMQuantity('1'); setMCalories(''); setMProtein(''); setMFat(''); setMCarbs('');
   };
 
   const totals = staged.reduce(
     (acc, s) => ({
-      calories: acc.calories + s.calories,
-      protein: acc.protein + s.protein,
-      fat: acc.fat + s.fat,
-      carbs: acc.carbs + s.carbs,
+      calories: acc.calories + s.baseCalories * s.quantity,
+      protein: acc.protein + s.baseProtein * s.quantity,
+      fat: acc.fat + s.baseFat * s.quantity,
+      carbs: acc.carbs + s.baseCarbs * s.quantity,
     }),
     { calories: 0, protein: 0, fat: 0, carbs: 0 }
   );
@@ -238,11 +264,11 @@ export function FoodPickerDialog({ open, onOpenChange, date, onAddBatch }: FoodP
       await onAddBatch(
         staged.map((s) => ({
           date,
-          name: s.name,
-          calories: Math.round(s.calories),
-          protein: s.protein,
-          fat: s.fat,
-          carbs: s.carbs,
+          name: s.quantity !== 1 ? `${s.name} (×${formatQty(s.quantity)})` : s.name,
+          calories: Math.round(s.baseCalories * s.quantity),
+          protein: Math.round(s.baseProtein * s.quantity * 10) / 10,
+          fat: Math.round(s.baseFat * s.quantity * 10) / 10,
+          carbs: Math.round(s.baseCarbs * s.quantity * 10) / 10,
           mealType: s.mealType,
         }))
       );
@@ -415,10 +441,12 @@ export function FoodPickerDialog({ open, onOpenChange, date, onAddBatch }: FoodP
                         addToStaged({
                           emoji: '🔎',
                           name: p.product_name,
-                          calories: kcal,
-                          protein: Number(n.proteins_100g ?? 0),
-                          fat: Number(n.fat_100g ?? 0),
-                          carbs: Number(n.carbohydrates_100g ?? 0),
+                          baseCalories: kcal,
+                          baseProtein: Number(n.proteins_100g ?? 0),
+                          baseFat: Number(n.fat_100g ?? 0),
+                          baseCarbs: Number(n.carbohydrates_100g ?? 0),
+                          quantity: 1,
+                          unitLabel: '100 г',
                           mealType: defaultMealType,
                         })
                       }
@@ -447,10 +475,12 @@ export function FoodPickerDialog({ open, onOpenChange, date, onAddBatch }: FoodP
                     addToStaged({
                       emoji: f.emoji,
                       name: f.name,
-                      calories: f.calories,
-                      protein: f.protein,
-                      fat: f.fat,
-                      carbs: f.carbs,
+                      baseCalories: f.calories,
+                      baseProtein: f.protein,
+                      baseFat: f.fat,
+                      baseCarbs: f.carbs,
+                      quantity: 1,
+                      unitLabel: f.portion,
                       mealType: f.mealType ?? defaultMealType,
                     })
                   }
@@ -481,10 +511,12 @@ export function FoodPickerDialog({ open, onOpenChange, date, onAddBatch }: FoodP
                       addToStaged({
                         emoji: '🍴',
                         name: f.name,
-                        calories: f.calories,
-                        protein: f.protein,
-                        fat: f.fat,
-                        carbs: f.carbs,
+                        baseCalories: f.calories,
+                        baseProtein: f.protein,
+                        baseFat: f.fat,
+                        baseCarbs: f.carbs,
+                        quantity: 1,
+                        unitLabel: 'порция',
                         mealType: (f.mealType as MealType) ?? defaultMealType,
                       })
                     }
@@ -508,11 +540,32 @@ export function FoodPickerDialog({ open, onOpenChange, date, onAddBatch }: FoodP
             </button>
             {showManual && (
               <div className="mt-2 space-y-2 bg-muted/40 rounded-xl p-3">
-                <Input placeholder="Название" value={mName} onChange={(e) => setMName(e.target.value)} />
+                <p className="text-[11px] text-muted-foreground -mt-1">
+                  Укажите калории и БЖУ на одну единицу/порцию — количество умножит автоматически
+                </p>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Название (напр. Банан)"
+                    value={mName}
+                    onChange={(e) => setMName(e.target.value)}
+                    className="flex-1 min-w-0"
+                  />
+                  <div className="w-20 shrink-0">
+                    <Input
+                      placeholder="1"
+                      type="number"
+                      min="0.1"
+                      step="0.5"
+                      value={mQuantity}
+                      onChange={(e) => setMQuantity(e.target.value)}
+                    />
+                    <p className="text-[10px] text-center text-muted-foreground mt-1">кол-во</p>
+                  </div>
+                </div>
                 <div className="grid grid-cols-4 gap-2">
                   <div>
                     <Input placeholder="Ккал" type="number" min="0" value={mCalories} onChange={(e) => setMCalories(e.target.value)} />
-                    <p className="text-[10px] text-center text-muted-foreground mt-1">ккал</p>
+                    <p className="text-[10px] text-center text-muted-foreground mt-1">ккал/ед.</p>
                   </div>
                   <div>
                     <Input placeholder="Б" type="number" min="0" step="0.1" value={mProtein} onChange={(e) => setMProtein(e.target.value)} />
@@ -527,6 +580,15 @@ export function FoodPickerDialog({ open, onOpenChange, date, onAddBatch }: FoodP
                     <p className="text-[10px] text-center text-muted-foreground mt-1">углев., г</p>
                   </div>
                 </div>
+                {mCaloriesNum > 0 && mQuantityNum !== 1 && (
+                  <p className="text-xs text-center text-primary bg-primary/10 rounded-md py-1.5">
+                    Итого за {formatQty(mQuantityNum)}:{' '}
+                    <span className="font-semibold">{Math.round(mCaloriesNum * mQuantityNum)} ккал</span>
+                    {' · Б '}{((parseFloat(mProtein) || 0) * mQuantityNum).toFixed(0)}г
+                    {' · Ж '}{((parseFloat(mFat) || 0) * mQuantityNum).toFixed(0)}г
+                    {' · У '}{((parseFloat(mCarbs) || 0) * mQuantityNum).toFixed(0)}г
+                  </p>
+                )}
                 <Button type="button" size="sm" variant="outline" onClick={handleManualAdd} className="w-full">
                   Добавить в список
                 </Button>
@@ -541,27 +603,54 @@ export function FoodPickerDialog({ open, onOpenChange, date, onAddBatch }: FoodP
                 <ListPlus className="w-3 h-3" /> Выбрано ({staged.length})
               </Label>
               <div className="mt-2 space-y-1.5">
-                {staged.map((s) => (
-                  <div
-                    key={s.key}
-                    className="flex items-center justify-between gap-2 bg-primary/5 border border-primary/20 rounded-lg px-3 py-1.5"
-                  >
-                    <span className="text-sm truncate flex items-center gap-1.5">
-                      <span>{s.emoji}</span>
-                      <span className="truncate">{s.name}</span>
-                      <span className="text-xs text-muted-foreground shrink-0">
-                        · {Math.round(s.calories)} ккал · {mealTypeLabels[s.mealType]}
-                      </span>
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => removeStaged(s.key)}
-                      className="text-muted-foreground hover:text-destructive shrink-0"
+                {staged.map((s) => {
+                  const cal = s.baseCalories * s.quantity;
+                  const step = s.quantity >= 1 ? 1 : 0.5;
+                  return (
+                    <div
+                      key={s.key}
+                      className="bg-primary/5 border border-primary/20 rounded-lg px-3 py-2"
                     >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm truncate flex items-center gap-1.5 min-w-0">
+                          <span>{s.emoji}</span>
+                          <span className="truncate">{s.name}</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => removeStaged(s.key)}
+                          className="text-muted-foreground hover:text-destructive shrink-0"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <div className="flex items-center justify-between gap-2 mt-1">
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => updateStagedQuantity(s.key, s.quantity - step)}
+                            className="w-6 h-6 flex items-center justify-center rounded-full bg-muted text-muted-foreground hover:bg-primary/15 hover:text-primary shrink-0"
+                          >
+                            <Minus className="w-3 h-3" />
+                          </button>
+                          <span className="text-xs font-medium tabular-nums whitespace-nowrap">
+                            {formatQty(s.quantity)} × {s.unitLabel}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => updateStagedQuantity(s.key, s.quantity + step)}
+                            className="w-6 h-6 flex items-center justify-center rounded-full bg-muted text-muted-foreground hover:bg-primary/15 hover:text-primary shrink-0"
+                          >
+                            <Plus className="w-3 h-3" />
+                          </button>
+                        </div>
+                        <span className="text-xs text-muted-foreground shrink-0">
+                          {Math.round(cal)} ккал · {mealTypeLabels[s.mealType]}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

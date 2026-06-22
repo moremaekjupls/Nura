@@ -8,6 +8,7 @@ import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { BottomNav } from "./components/BottomNav";
 import Home from "./pages/Home";
 import Profile from "./pages/Profile";
+import Statistics from "./pages/Statistics";
 import Auth from "./pages/Auth";
 import Privacy from "./pages/Privacy";
 
@@ -55,6 +56,7 @@ function AppContent() {
     <>
       <Switch>
         <Route path="/" component={Home} />
+        <Route path="/statistics" component={Statistics} />
         <Route path="/profile" component={Profile} />
         <Route component={NotFound} />
       </Switch>

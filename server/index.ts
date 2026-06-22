@@ -311,6 +311,9 @@ const stmts = {
   entriesForRange: db.prepare<[string, string, string]>(
     `SELECT * FROM entries WHERE user_id = ? AND date >= ? AND date <= ? ORDER BY date, COALESCE(time, '99:99'), id`
   ),
+  waterForRange: db.prepare<[string, string, string]>(
+    `SELECT date, COALESCE(SUM(ml), 0) as total FROM water_logs WHERE user_id = ? AND date >= ? AND date <= ? GROUP BY date`
+  ),
 
   // rate limiting (persisted so it survives deploys/restarts)
   getRateLimit: db.prepare<[string]>('SELECT * FROM rate_limits WHERE key = ?'),
@@ -928,6 +931,7 @@ async function startServer() {
     }
 
     const rows = stmts.entriesForRange.all(req.userId, from, to) as DbEntry[];
+    const waterRows = stmts.waterForRange.all(req.userId, from, to) as { date: string; total: number }[];
     const goal = getGoalForUser(req.userId);
 
     // Build map date -> entries
@@ -937,12 +941,18 @@ async function startServer() {
       byDate.get(row.date)!.push(rowToEntry(row));
     }
 
+    // Build map date -> water consumed (ml)
+    const waterByDate = new Map<string, number>();
+    for (const row of waterRows) {
+      waterByDate.set(row.date, row.total);
+    }
+
     // Fill every day in range
     const result = [];
     const cur = new Date(fromDate);
     while (cur <= toDate) {
       const dateStr = cur.toISOString().slice(0, 10);
-      result.push(computeSummary(byDate.get(dateStr) ?? [], goal, dateStr));
+      result.push(computeSummary(byDate.get(dateStr) ?? [], goal, dateStr, waterByDate.get(dateStr) ?? 0));
       cur.setDate(cur.getDate() + 1);
     }
 
