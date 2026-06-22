@@ -65,8 +65,7 @@ export default function Home() {
           className="container app-shell py-4 flex items-center justify-between"
           style={{ paddingTop: 'calc(1rem + env(safe-area-inset-top))' }}
         >
-          <h1 className="text-2xl font-display font-bold text-primary flex items-center gap-2">
-            <img src="/images/nura-mark.png" alt="" className="w-7 h-7" />
+          <h1 className="text-2xl font-display font-bold text-primary">
             Nura
           </h1>
           <Button
@@ -108,8 +107,14 @@ export default function Home() {
         </div>
       </main>
 
-      {/* Mobile FAB — opens the same central dialog, no more bottom sheet */}
-      <div className="fixed bottom-20 right-4 sm:hidden z-50">
+      {/* Mobile FAB — opens the same central dialog, no more bottom sheet.
+          Sits above the floating BottomNav pill (which grew wider once it
+          picked up a 3rd tab) — both safe-area-aware and a higher z-index
+          than the nav so it never gets visually buried again. */}
+      <div
+        className="fixed right-4 sm:hidden z-[60]"
+        style={{ bottom: 'calc(6rem + env(safe-area-inset-bottom))' }}
+      >
         <Button
           onClick={() => setShowPicker(true)}
           className="rounded-full h-14 w-14 shadow-lg bg-primary hover:bg-primary/90 text-primary-foreground"
