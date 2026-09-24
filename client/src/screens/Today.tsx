@@ -162,6 +162,21 @@ export default function Today({ date, setDate, onAdd }: { date: string; setDate(
     return num(l, l % 1 === 0 ? 0 : Math.round(l * 100) % 10 === 0 ? 1 : 2);
   }
 
+  /** In-app version of the water reminder: behind the 08:00–21:00 pace by more than a glass. */
+  function nudge() {
+    const d = day.data!;
+    if (date !== today) return null;
+    const now = new Date();
+    const minutes = now.getHours() * 60 + now.getMinutes();
+    const expected = d.goal.water * Math.min(1, Math.max(0, (minutes - 480) / (1260 - 480)));
+    if (d.water.total >= expected - CUP || d.water.total >= d.goal.water) return null;
+    return (
+      <p className="small fade-in" style={{ margin: '-4px 0 12px', color: 'var(--ink2)' }}>
+        {t('today.waterNudge', { x: liters(Math.round(expected / CUP) * CUP) })}
+      </p>
+    );
+  }
+
   function renderWater() {
     const d = day.data!;
     const cups = Math.min(16, Math.max(4, Math.ceil(d.goal.water / CUP)));
@@ -183,6 +198,7 @@ export default function Today({ date, setDate, onAdd }: { date: string; setDate(
             {t('today.waterOf', { a: liters(d.water.total), b: liters(d.goal.water) })}
           </span>
         </div>
+        {nudge()}
         <div className="cups" style={{ gridTemplateColumns: `repeat(${Math.min(cups, 8)}, minmax(0, 1fr))` }}>
           {Array.from({ length: cups }, (_, i) => (
             <button key={i} className="cup" aria-pressed={i < filled} aria-label={t('today.cup', { n: i + 1 })} onClick={() => tap(i)} />

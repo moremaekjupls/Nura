@@ -265,6 +265,14 @@ textarea.input { height: auto; min-height: 88px; padding: 12px 14px; resize: non
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
 
+.offline {
+  position: fixed; z-index: 70; top: calc(var(--safe-top) + 8px); left: 50%; transform: translateX(-50%);
+  padding: 8px 16px; border-radius: 999px; font-size: 13px; font-weight: 600; white-space: nowrap; max-width: calc(100% - 32px);
+  overflow: hidden; text-overflow: ellipsis;
+}
+.offline-mode .screen { padding-top: calc(var(--safe-top) + 60px); }
+.link-btn { color: var(--accent); font-size: 15px; font-weight: 500; padding: 8px 4px; }
+
 /* Auth -------------------------------------------------------------------- */
 
 .auth { min-height: 100dvh; display: flex; flex-direction: column; justify-content: center; }

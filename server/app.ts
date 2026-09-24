@@ -4,11 +4,15 @@ import { nanoid } from 'nanoid';
 import { z } from 'zod';
 import {
   aiPhotoInput, aiTextInput, credentials, entryBatch, entryPatch, goalInput, isoDate, loginInput,
-  passwordChange, profileInput, telegramAuthInput, waterInput, weightInput,
+  passwordChange, profileInput, telegramAuthInput, waterInput, weightInput, forgotInput, resetInput, remindersInput,
 } from '../shared/schemas.js';
 import { calcGoal, calcWater, isBodyProfileComplete, type BodyProfile, type Goal } from '../shared/nutrition.js';
 import { hashPassword, hashToken, newSessionToken, safeEqual, verifyPassword, verifyTelegramInitData } from './auth.js';
 import { AiError, recognize } from './ai.js';
+import { resetEmail, type Mailer } from './mail.js';
+import type { Bot } from './telegram.js';
+import { isValidTimeZone, type Reminders } from './reminders.js';
+import { randomBytes } from 'crypto';
 
 declare global {
   namespace Express {
@@ -24,6 +28,11 @@ export interface AppOptions {
   adminKey?: string;
   production?: boolean;
   runBackup?: () => Promise<string | null>;
+  /** Public https origin, e.g. https://nura.up.railway.app — used in reset links and the bot. */
+  appUrl?: string;
+  mailer?: Mailer;
+  bot?: Bot;
+  reminders?: Reminders;
 }
 
 export const AUTH_COOKIE = 'ct_auth';
@@ -157,6 +166,7 @@ export function createApp(db: Database.Database, opts: AppOptions = {}) {
     id: string; email: string | null; password_hash: string | null; telegram_id: number | null; name: string | null;
     gender: BodyProfile['gender'] | null; birth_year: number | null; height_cm: number | null; weight_kg: number | null;
     activity: BodyProfile['activity'] | null; goal_mode: BodyProfile['goalMode'] | null; lang: 'ru' | 'uz';
+    tz: string; remind_meals: number; remind_water: number;
   };
   type EntryRow = {
     id: string; date: string; name: string; portion: string | null; calories: number; protein: number;
@@ -335,6 +345,67 @@ export function createApp(db: Database.Database, opts: AppOptions = {}) {
     res.status(204).end();
   });
 
+  app.get('/api/config', (_req, res) => {
+    res.json({ botUsername: opts.bot?.username ?? null, passwordReset: !!opts.mailer });
+  });
+
+  // -------------------------------------------------------------------------
+  // Password reset via email (Resend). Always answers 204 so the form can't be
+  // used to find out which emails are registered.
+  // -------------------------------------------------------------------------
+
+  app.post('/api/auth/forgot', authLimit, h(async (req, res) => {
+    if (!opts.mailer) throw new HttpError(503, 'Восстановление пароля временно недоступно');
+    const { email, lang } = parse(forgotInput, req.body);
+    const u = q.userByEmail.get(email) as UserRow | undefined;
+    const base = opts.appUrl || (!opts.production ? `${req.protocol}://${req.get('host')}` : null);
+    if (!base) throw new HttpError(503, 'Восстановление пароля временно недоступно');
+    if (u) {
+      const token = randomBytes(32).toString('base64url');
+      db.prepare('DELETE FROM password_resets WHERE user_id = ?').run(u.id);
+      db.prepare('INSERT INTO password_resets (token_hash, user_id, expires_at) VALUES (?, ?, ?)').run(hashToken(token), u.id, Date.now() + 60 * 60 * 1000);
+      // Token in the fragment: never sent to the server in logs or Referer.
+      const mail = resetEmail(`${base}/reset#token=${token}`, lang);
+      try {
+        await opts.mailer.send({ to: email, ...mail });
+      } catch (err) {
+        console.error('[mail] reset email failed:', err);
+      }
+    }
+    res.status(204).end();
+  }));
+
+  app.post('/api/auth/reset', authLimit, h(async (req, res) => {
+    const { token, password } = parse(resetInput, req.body);
+    const row = db.prepare('SELECT user_id, expires_at, used_at FROM password_resets WHERE token_hash = ?').get(hashToken(token)) as
+      | { user_id: string; expires_at: number; used_at: number | null }
+      | undefined;
+    if (!row || row.used_at || row.expires_at < Date.now() || !getUser(row.user_id)) {
+      throw new HttpError(400, 'Ссылка недействительна или устарела. Запросите новую');
+    }
+    const passwordHash = await hashPassword(password);
+    db.transaction(() => {
+      db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(passwordHash, row.user_id);
+      db.prepare('UPDATE password_resets SET used_at = ? WHERE token_hash = ?').run(Date.now(), hashToken(token));
+      db.prepare('DELETE FROM sessions WHERE user_id = ?').run(row.user_id); // log out everywhere
+    })();
+    const sessionToken = startSession(res, row.user_id);
+    res.json({ user: me(getUser(row.user_id)!), token: sessionToken });
+  }));
+
+  // -------------------------------------------------------------------------
+  // Telegram bot webhook (authenticated by the secret Telegram echoes back)
+  // -------------------------------------------------------------------------
+
+  app.post('/api/telegram/webhook', (req, res) => {
+    if (!opts.bot || !opts.reminders || !safeEqual(req.header('x-telegram-bot-api-secret-token') || '', opts.bot.webhookSecret)) {
+      res.status(403).end();
+      return;
+    }
+    res.status(200).end(); // answer at once; Telegram retries slow webhooks
+    opts.reminders.handleUpdate(req.body).catch((err) => console.error('[bot] update failed:', err));
+  });
+
   // -------------------------------------------------------------------------
   // Admin (key in a header, never in the URL where proxies would log it)
   // -------------------------------------------------------------------------
@@ -421,7 +492,7 @@ export function createApp(db: Database.Database, opts: AppOptions = {}) {
       db.prepare('UPDATE water_logs SET user_id = ? WHERE user_id = ?').run(to, from);
       // Same-day weights: the email account's value wins.
       db.prepare('INSERT OR IGNORE INTO weight_logs (user_id, date, kg, created_at) SELECT ?, date, kg, created_at FROM weight_logs WHERE user_id = ?').run(to, from);
-      for (const t of ['weight_logs', 'goals', 'ai_usage', 'sessions']) db.prepare(`DELETE FROM ${t} WHERE user_id = ?`).run(from);
+      for (const t of ['weight_logs', 'goals', 'ai_usage', 'sessions', 'password_resets', 'reminder_log']) db.prepare(`DELETE FROM ${t} WHERE user_id = ?`).run(from);
       db.prepare('DELETE FROM users WHERE id = ?').run(from);
       db.prepare('UPDATE users SET telegram_id = ? WHERE id = ?').run(tgUser.telegram_id, to);
       const latest = q.latestWeight.get(to) as { kg: number } | undefined;
@@ -435,7 +506,7 @@ export function createApp(db: Database.Database, opts: AppOptions = {}) {
   app.delete('/api/account', (req, res) => {
     const id = req.userId;
     db.transaction(() => {
-      for (const t of ['entries', 'water_logs', 'weight_logs', 'goals', 'ai_usage', 'sessions']) {
+      for (const t of ['entries', 'water_logs', 'weight_logs', 'goals', 'ai_usage', 'sessions', 'password_resets', 'reminder_log']) {
         db.prepare(`DELETE FROM ${t} WHERE user_id = ?`).run(id);
       }
       db.prepare('DELETE FROM users WHERE id = ?').run(id);
@@ -470,13 +541,14 @@ export function createApp(db: Database.Database, opts: AppOptions = {}) {
     const p = parse(profileInput, req.body);
     const map: Record<string, string> = {
       name: 'name', gender: 'gender', birthYear: 'birth_year', heightCm: 'height_cm', weightKg: 'weight_kg',
-      activity: 'activity', goalMode: 'goal_mode', lang: 'lang',
+      activity: 'activity', goalMode: 'goal_mode', lang: 'lang', tz: 'tz',
     };
+    if (p.tz && !isValidTimeZone(p.tz)) throw new HttpError(400, 'tz: неизвестный часовой пояс');
     const sets: string[] = [];
     const vals: unknown[] = [];
     for (const [k, col] of Object.entries(map)) {
       const v = (p as Record<string, unknown>)[k];
-      if (v === undefined || (k === 'lang' && v === null)) continue;
+      if (v === undefined || ((k === 'lang' || k === 'tz') && v === null)) continue;
       sets.push(`${col} = ?`);
       vals.push(v);
     }
@@ -624,6 +696,45 @@ export function createApp(db: Database.Database, opts: AppOptions = {}) {
         .filter((r) => !seen.has(r.name) && seen.add(r.name))
         .map((r) => ({ name: r.name, portion: r.portion, calories: r.calories, protein: r.protein, fat: r.fat, carbs: r.carbs, count: r.cnt })),
     );
+  });
+
+  // -------------------------------------------------------------------------
+  // Reminders (delivered by the Telegram bot)
+  // -------------------------------------------------------------------------
+
+  const remindersOf = (u: UserRow) => {
+    const chat = u.telegram_id != null
+      ? (db.prepare('SELECT blocked FROM telegram_chats WHERE telegram_id = ?').get(u.telegram_id) as { blocked: number } | undefined)
+      : undefined;
+    return {
+      meals: !!u.remind_meals,
+      water: !!u.remind_water,
+      telegram: u.telegram_id != null,
+      canWrite: !!chat && !chat.blocked,
+      available: !!opts.bot,
+      botUsername: opts.bot?.username ?? null,
+    };
+  };
+
+  app.get('/api/reminders', (req, res) => {
+    res.json(remindersOf(getUser(req.userId)!));
+  });
+
+  app.put('/api/reminders', (req, res) => {
+    const p = parse(remindersInput, req.body);
+    const u = getUser(req.userId)!;
+    if (u.telegram_id == null && (p.meals || p.water)) throw new HttpError(400, 'Напоминания приходят в Telegram — откройте Nura в боте');
+    if (p.meals !== undefined) db.prepare('UPDATE users SET remind_meals = ? WHERE id = ?').run(p.meals ? 1 : 0, u.id);
+    if (p.water !== undefined) db.prepare('UPDATE users SET remind_water = ? WHERE id = ?').run(p.water ? 1 : 0, u.id);
+    res.json(remindersOf(getUser(u.id)!));
+  });
+
+  /** Called after the user granted write access in the Mini App (WebApp.requestWriteAccess). */
+  app.post('/api/reminders/allow', (req, res) => {
+    const u = getUser(req.userId)!;
+    if (u.telegram_id == null) throw new HttpError(400, 'Нет привязанного Telegram');
+    opts.reminders?.allowChat(u.telegram_id);
+    res.json(remindersOf(getUser(u.id)!));
   });
 
   // -------------------------------------------------------------------------

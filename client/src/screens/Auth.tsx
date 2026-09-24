@@ -1,10 +1,13 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { Link } from 'wouter';
 import { useI18n } from '@/lib/i18n';
 import { errorText } from '@/lib/format';
 import { tg } from '@/lib/telegram';
 import { useAuth } from '@/state/auth';
 import { Segmented } from '@/ui/controls';
+import { Sheet } from '@/ui/Sheet';
+import { api } from '@/lib/api';
+import { useConfig } from '@/state/queries';
 
 export default function Auth() {
   const i18n = useI18n();
@@ -16,6 +19,8 @@ export default function Auth() {
   const [consent, setConsent] = useState(false);
   const [error, setError] = useState<string | null>(tg() && tgError ? t('auth.tgFailed') : null);
   const [busy, setBusy] = useState(false);
+  const [forgot, setForgot] = useState(false);
+  const config = useConfig();
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -64,6 +69,49 @@ export default function Auth() {
           {mode === 'login' ? t('auth.submitLogin') : t('auth.submitRegister')}
         </button>
       </form>
+      {mode === 'login' && config.data?.passwordReset && (
+        <button className="link-btn" style={{ alignSelf: 'center', marginTop: 12 }} onClick={() => setForgot(true)}>{t('auth.forgot')}</button>
+      )}
+      <ForgotSheet open={forgot} onClose={() => setForgot(false)} initialEmail={email} />
     </main>
+  );
+}
+
+function ForgotSheet({ open, onClose, initialEmail }: { open: boolean; onClose(): void; initialEmail: string }) {
+  const i18n = useI18n();
+  const { t, lang } = i18n;
+  const [email, setEmail] = useState(initialEmail);
+  const [state, setState] = useState<'idle' | 'busy' | 'sent'>('idle');
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => { if (open) setEmail(initialEmail); }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const send = async () => {
+    setState('busy');
+    setError(null);
+    try {
+      await api('/api/auth/forgot', { method: 'POST', body: { email, lang } });
+      setState('sent');
+    } catch (err) {
+      setError(errorText(err, i18n));
+      setState('idle');
+    }
+  };
+
+  return (
+    <Sheet open={open} onClose={() => { onClose(); setState('idle'); }} title={t('auth.forgotTitle')} compact
+      footer={state === 'sent'
+        ? <button className="btn block secondary" onClick={onClose}>{t('common.done')}</button>
+        : <button className="btn block" disabled={!email.includes('@') || state === 'busy'} onClick={send}>{t('auth.forgotSend')}</button>}>
+      {state === 'sent' ? (
+        <p style={{ margin: '4px', fontSize: 16, lineHeight: 1.45 }}>{t('auth.forgotSent')}</p>
+      ) : (
+        <div className="stack">
+          <p className="small muted" style={{ margin: '0 4px' }}>{t('auth.forgotHint')}</p>
+          <label className="field"><span>{t('auth.email')}</span>
+            <input className="input" type="email" inputMode="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} /></label>
+          {error && <p className="error-text" role="alert" style={{ margin: 0 }}>{error}</p>}
+        </div>
+      )}
+    </Sheet>
   );
 }

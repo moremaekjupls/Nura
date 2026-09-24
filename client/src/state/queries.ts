@@ -155,3 +155,31 @@ export function useRecognize() {
         : api<AiResult>('/api/ai/text', { method: 'POST', body: { text: input.text, lang: input.lang } }),
   });
 }
+
+export interface AppConfig {
+  botUsername: string | null;
+  passwordReset: boolean;
+}
+export const useConfig = () =>
+  useQuery({ queryKey: ['config'], queryFn: () => api<AppConfig>('/api/config'), staleTime: 10 * 60_000 });
+
+export interface ReminderSettings {
+  meals: boolean;
+  water: boolean;
+  telegram: boolean;
+  canWrite: boolean;
+  available: boolean;
+  botUsername: string | null;
+}
+export const useReminders = () => useQuery({ queryKey: ['reminders'], queryFn: () => api<ReminderSettings>('/api/reminders') });
+
+export function useSaveReminders() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (p: { meals?: boolean; water?: boolean; allow?: boolean }) =>
+      (p.allow ? api<ReminderSettings>('/api/reminders/allow', { method: 'POST' }) : Promise.resolve(null)).then(() =>
+        api<ReminderSettings>('/api/reminders', { method: 'PUT', body: { meals: p.meals, water: p.water } }),
+      ),
+    onSuccess: (r) => qc.setQueryData(['reminders'], r),
+  });
+}

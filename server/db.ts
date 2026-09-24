@@ -107,7 +107,33 @@ function v2(db: Database.Database) {
   }
 }
 
-const MIGRATIONS: ((db: Database.Database) => void)[] = [v1Baseline, v2];
+/**
+ * v3: password reset tokens (Resend), Telegram reminders — per-user settings
+ * and time zone, chats the bot may write to, and a log that keeps each
+ * reminder to one send per slot per day.
+ */
+function v3(db: Database.Database) {
+  db.exec(`
+    ALTER TABLE users ADD COLUMN tz TEXT NOT NULL DEFAULT 'Asia/Tashkent';
+    ALTER TABLE users ADD COLUMN remind_meals INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE users ADD COLUMN remind_water INTEGER NOT NULL DEFAULT 0;
+
+    CREATE TABLE password_resets (
+      token_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL,
+      expires_at INTEGER NOT NULL, used_at INTEGER);
+    CREATE INDEX idx_password_resets_user ON password_resets (user_id);
+
+    CREATE TABLE telegram_chats (
+      telegram_id INTEGER PRIMARY KEY, blocked INTEGER NOT NULL DEFAULT 0,
+      started_at TEXT DEFAULT (datetime('now')));
+
+    CREATE TABLE reminder_log (
+      user_id TEXT NOT NULL, kind TEXT NOT NULL, date TEXT NOT NULL,
+      sent_at TEXT DEFAULT (datetime('now')), PRIMARY KEY (user_id, kind, date));
+  `);
+}
+
+const MIGRATIONS: ((db: Database.Database) => void)[] = [v1Baseline, v2, v3];
 
 export function migrate(db: Database.Database) {
   const current = db.pragma('user_version', { simple: true }) as number;

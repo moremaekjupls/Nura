@@ -44,7 +44,7 @@ describe('migration from the v1 production schema', () => {
     old.close();
 
     const db = openDb(file);
-    expect(db.pragma('user_version', { simple: true })).toBe(2);
+    expect(db.pragma('user_version', { simple: true })).toBe(3);
     expect((db.prepare('SELECT COUNT(*) n FROM entries').get() as { n: number }).n).toBe(1);
     const s = db.prepare('SELECT token FROM sessions').get() as { token: string };
     expect(s.token).toBe(createHash('sha256').update('plain-token-48').digest('hex'));

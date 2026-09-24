@@ -69,6 +69,18 @@ const ru = {
 
   'onb.title': 'Расскажите о себе', 'onb.sub': 'Посчитаем дневную норму калорий и БЖУ под вас. Данные видите только вы.',
   'onb.result': 'Ваша норма', 'onb.start': 'Начать', 'onb.skip': 'Позже',
+
+  'auth.forgot': 'Забыли пароль?', 'auth.forgotTitle': 'Восстановление пароля',
+  'auth.forgotHint': 'Пришлём на email ссылку, по которой можно задать новый пароль', 'auth.forgotSend': 'Отправить ссылку',
+  'auth.forgotSent': 'Если такой email зарегистрирован, письмо уже в пути. Проверьте и папку «Спам».',
+  'auth.resetTitle': 'Новый пароль', 'auth.resetSave': 'Сохранить и войти', 'auth.resetInvalid': 'Ссылка неполная. Откройте её из письма ещё раз',
+  'rem.title': 'Напоминания', 'rem.meals': 'Записать еду', 'rem.mealsSub': 'В 9:30, 13:30 и 19:30, если приём пищи ещё не записан',
+  'rem.water': 'Пить воду', 'rem.waterSub': 'Днём, если отстаёте от нормы. Воду можно отметить прямо в чате',
+  'rem.viaTelegram': 'Напоминания приходят в Telegram. Откройте Nura в боте — там можно привязать этот аккаунт.',
+  'rem.openBot': 'Открыть бота', 'rem.needStart': 'Нажмите «Start» в чате с ботом, чтобы он мог вам писать',
+  'rem.denied': 'Без разрешения бот не сможет присылать напоминания',
+  'today.waterNudge': 'По графику к этому часу — {x} л. Самое время выпить стакан',
+  'offline.banner': 'Нет сети — показаны сохранённые данные',
 };
 
 type Key = keyof typeof ru;
@@ -138,6 +150,18 @@ const uz: Record<Key, string> = {
 
   'onb.title': 'Oʻzingiz haqingizda', 'onb.sub': 'Sizga mos kunlik kaloriya va BJU meʼyorini hisoblaymiz. Maʼlumotlarni faqat siz koʻrasiz.',
   'onb.result': 'Sizning meʼyoringiz', 'onb.start': 'Boshlash', 'onb.skip': 'Keyinroq',
+
+  'auth.forgot': 'Parolni unutdingizmi?', 'auth.forgotTitle': 'Parolni tiklash',
+  'auth.forgotHint': 'Yangi parol oʻrnatish uchun havolani emailingizga yuboramiz', 'auth.forgotSend': 'Havolani yuborish',
+  'auth.forgotSent': 'Agar bu email roʻyxatdan oʻtgan boʻlsa, xat yuborildi. «Spam» papkasini ham tekshiring.',
+  'auth.resetTitle': 'Yangi parol', 'auth.resetSave': 'Saqlash va kirish', 'auth.resetInvalid': 'Havola toʻliq emas. Uni xatdan qayta oching',
+  'rem.title': 'Eslatmalar', 'rem.meals': 'Ovqatni yozish', 'rem.mealsSub': '9:30, 13:30 va 19:30 da, agar ovqat hali yozilmagan boʻlsa',
+  'rem.water': 'Suv ichish', 'rem.waterSub': 'Kun davomida, meʼyordan orqada qolsangiz. Suvni chatning oʻzida belgilash mumkin',
+  'rem.viaTelegram': 'Eslatmalar Telegramga keladi. Nurani botda oching — u yerda shu hisobni bogʻlash mumkin.',
+  'rem.openBot': 'Botni ochish', 'rem.needStart': 'Bot sizga yoza olishi uchun u bilan chatda «Start» tugmasini bosing',
+  'rem.denied': 'Ruxsatsiz bot eslatma yubora olmaydi',
+  'today.waterNudge': 'Jadval boʻyicha shu vaqtgacha — {x} l. Bir stakan suv ichish vaqti',
+  'offline.banner': 'Internet yoʻq — saqlangan maʼlumotlar koʻrsatilmoqda',
 };
 
 export type Lang = 'ru' | 'uz';

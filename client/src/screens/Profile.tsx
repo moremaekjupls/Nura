@@ -8,7 +8,8 @@ import { todayISO } from '@/lib/dates';
 import { errorText } from '@/lib/format';
 import { useI18n, type Lang } from '@/lib/i18n';
 import { useAuth } from '@/state/auth';
-import { useLogWeight, useProfile, useSaveGoal, useSaveProfile } from '@/state/queries';
+import { useLogWeight, useProfile, useReminders, useSaveGoal, useSaveProfile, useSaveReminders } from '@/state/queries';
+import { requestWriteAccess, tg } from '@/lib/telegram';
 import { Segmented, Switch } from '@/ui/controls';
 import { Sheet } from '@/ui/Sheet';
 import { useToast } from '@/ui/Toast';
@@ -137,6 +138,8 @@ export default function Profile() {
           </section>
         </>
       )}
+
+      <RemindersSection />
 
       <div className="section-title"><h2>{t('profile.settings')}</h2></div>
       <section className="card list mb">
@@ -352,5 +355,59 @@ function EmailSheet({ mode, open, onClose }: { mode: 'link' | 'set'; open: boole
         {mode === 'set' && <span className="small muted">{t('auth.passwordHint')}</span>}
       </div>
     </Sheet>
+  );
+}
+
+function RemindersSection() {
+  const i18n = useI18n();
+  const { t } = i18n;
+  const toast = useToast();
+  const r = useReminders();
+  const save = useSaveReminders();
+  if (!r.data?.available) return null;
+  const d = r.data;
+  const botLink = d.botUsername ? `https://t.me/${d.botUsername}` : null;
+
+  const toggle = async (key: 'meals' | 'water', on: boolean) => {
+    let allow = false;
+    if (on && !d.canWrite && tg()) {
+      // The bot may only write to people who allowed it — ask right inside the Mini App.
+      allow = await requestWriteAccess();
+      if (!allow) {
+        toast.show(t('rem.denied'), { tone: 'error' });
+        return;
+      }
+    }
+    save.mutate({ [key]: on, allow }, { onError: (e) => toast.show(errorText(e, i18n), { tone: 'error' }) });
+  };
+
+  return (
+    <>
+      <div className="section-title"><h2>{t('rem.title')}</h2></div>
+      {!d.telegram ? (
+        <section className="card pad mb-l">
+          <p style={{ margin: '0 0 12px', fontSize: 15, lineHeight: 1.45 }}>{t('rem.viaTelegram')}</p>
+          {botLink && <a className="btn block secondary" href={botLink} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>{t('rem.openBot')}</a>}
+        </section>
+      ) : (
+        <section className="card list mb-l">
+          {([['meals', t('rem.meals'), t('rem.mealsSub')], ['water', t('rem.water'), t('rem.waterSub')]] as const).map(([key, title, sub]) => (
+            <div key={key} className="row">
+              <span className="grow">
+                <span style={{ display: 'block', fontSize: 17 }}>{title}</span>
+                <span className="sub" style={{ display: 'block' }}>{sub}</span>
+              </span>
+              <Switch label={title} checked={d[key]} onChange={(on) => toggle(key, on)} />
+            </div>
+          ))}
+          {(d.meals || d.water) && !d.canWrite && !tg() && (
+            <div className="row">
+              <span className="grow small muted">{t('rem.needStart')}</span>
+              {botLink && <a className="btn small secondary" href={botLink} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>{t('rem.openBot')}</a>}
+            </div>
+          )}
+        </section>
+      )}
+    </>
   );
 }

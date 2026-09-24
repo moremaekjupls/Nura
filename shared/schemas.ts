@@ -38,6 +38,7 @@ export const profileInput = z.object({
   activity: z.enum(['low', 'mid', 'high']).nullish(),
   goalMode: z.enum(['lose', 'keep', 'gain']).nullish(),
   lang: z.enum(['ru', 'uz']).nullish(),
+  tz: z.string().max(64).nullish(),
   autoGoal: z.boolean().optional(),
 });
 
@@ -62,3 +63,7 @@ export const aiTextInput = z.object({
 });
 
 export const telegramAuthInput = z.object({ initData: z.string().min(10).max(4096) });
+
+export const forgotInput = z.object({ email: z.string().trim().toLowerCase().max(200), lang: z.enum(['ru', 'uz']).default('ru') });
+export const resetInput = z.object({ token: z.string().min(20).max(200), password: credentials.shape.password });
+export const remindersInput = z.object({ meals: z.boolean().optional(), water: z.boolean().optional() });

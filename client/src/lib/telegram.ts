@@ -26,6 +26,7 @@ export interface TgWebApp {
     selectionChanged(): void;
   };
   isVersionAtLeast?(v: string): boolean;
+  requestWriteAccess?(cb: (granted: boolean) => void): void;
 }
 
 declare global {
@@ -101,4 +102,11 @@ export function haptic(kind: 'light' | 'success' | 'error' | 'select') {
   if (kind === 'light') h.impactOccurred('light');
   else if (kind === 'select') h.selectionChanged();
   else h.notificationOccurred(kind);
+}
+
+/** Ask the user to let the bot message them (Bot API 6.9+). Resolves false outside Telegram. */
+export function requestWriteAccess(): Promise<boolean> {
+  const wa = webApp;
+  if (!wa?.requestWriteAccess) return Promise.resolve(false);
+  return new Promise((resolve) => wa.requestWriteAccess!((granted) => resolve(granted)));
 }

@@ -2,6 +2,24 @@ import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, 
 import { useQueryClient } from '@tanstack/react-query';
 import { api, ApiError, Me, restoreToken, setToken } from '@/lib/api';
 import { tg } from '@/lib/telegram';
+import { clearPersistedCache } from './persist';
+
+const ME_KEY = 'nura_me';
+function cacheMe(u: Me | null) {
+  try {
+    if (u) localStorage.setItem(ME_KEY, JSON.stringify(u));
+    else localStorage.removeItem(ME_KEY);
+  } catch {
+    /* storage unavailable */
+  }
+}
+function cachedMe(): Me | null {
+  try {
+    return JSON.parse(localStorage.getItem(ME_KEY) || 'null');
+  } catch {
+    return null;
+  }
+}
 
 interface AuthValue {
   user: Me | null;
@@ -18,7 +36,11 @@ const AuthContext = createContext<AuthValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const qc = useQueryClient();
-  const [user, setUser] = useState<Me | null>(null);
+  const [user, setUserState] = useState<Me | null>(null);
+  const setUser = useCallback((u: Me | null) => {
+    setUserState(u);
+    cacheMe(u);
+  }, []);
   const [status, setStatus] = useState<'loading' | 'ready'>('loading');
   const [tgError, setTgError] = useState<string | null>(null);
 
@@ -27,8 +49,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(await api<Me>('/api/auth/me'));
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) setUser(null);
+      // Offline: keep working with the last known account and cached data.
+      else if (e instanceof ApiError && e.status === 0) setUserState(cachedMe());
     }
-  }, []);
+  }, [setUser]);
 
   useEffect(() => {
     (async () => {
@@ -48,7 +72,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       setStatus('ready');
     })();
-  }, [refresh]);
+  }, [refresh, setUser]);
+
+  // Reminders are scheduled in the user's own time zone.
+  useEffect(() => {
+    if (!user) return;
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (tz) api('/api/profile', { method: 'PUT', body: { tz } }).catch(() => {});
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const value = useMemo<AuthValue>(
     () => ({
@@ -73,10 +104,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await api('/api/auth/logout', { method: 'POST' }).catch(() => {});
         setToken(null);
         qc.clear(); // no cached data may survive into the next account on this device
+        clearPersistedCache();
         setUser(null);
       },
     }),
-    [user, status, tgError, refresh, qc],
+    [user, status, tgError, refresh, qc, setUser],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
