@@ -1,25 +1,20 @@
-FROM node:20-bookworm-slim
-
-# Native build deps for better-sqlite3 / node-gyp
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 make g++ \
+# ---- build: compile native deps, bundle client and server ----
+FROM node:20-bookworm-slim AS build
+RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
     && rm -rf /var/lib/apt/lists/*
-
 WORKDIR /app
-
-# Use the exact pnpm version pinned in package.json via corepack
 RUN corepack enable && corepack prepare pnpm@10.4.1 --activate
-
-COPY package.json ./
-COPY pnpm-lock.yaml* ./
-
-RUN pnpm install --no-frozen-lockfile
-
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
 COPY . .
+RUN pnpm build && pnpm prune --prod
 
-RUN pnpm build
-
+# ---- runtime: only production deps and the built app ----
+FROM node:20-bookworm-slim
+WORKDIR /app
 ENV NODE_ENV=production
+COPY --from=build /app/package.json ./
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/dist ./dist
 EXPOSE 3000
-
-CMD ["pnpm", "start"]
+CMD ["node", "dist/index.js"]

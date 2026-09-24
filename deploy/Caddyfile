@@ -1,0 +1,5 @@
+# DOMAIN comes from .env: your own domain, or <ip-with-dashes>.sslip.io until you buy one.
+{$DOMAIN} {
+	encode zstd gzip
+	reverse_proxy app:3000
+}
