@@ -42,7 +42,7 @@ pnpm build && pnpm start
 ## Продакшен
 
 Oracle Cloud Always Free: одна виртуальная машина, Docker Compose и Caddy с автоматическим HTTPS.
-Пошагово: [deploy/ORACLE.md](deploy/ORACLE.md). Коротко: на сервере Ubuntu выполнить
+Пошагово: [deploy/ORACLE.md](deploy/ORACLE.md). Быстрее всего запустить в Oracle Cloud Shell `deploy/oci-launch.sh`: он создаст сеть и машину, и приложение поднимется само. Вручную: на сервере Ubuntu выполнить
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/moremaekjupls/Nura/main/deploy/setup.sh | bash
