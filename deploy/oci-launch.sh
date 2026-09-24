@@ -130,6 +130,9 @@ done
 if [ -z "$INSTANCE" ]; then
   say "ARM сейчас нет — беру AMD Micro (VM.Standard.E2.1.Micro, 1 GB)"
   for ad in $ADS; do
+    # Many regions (e.g. Chicago) offer only ARM for free — skip ADs without the Micro shape.
+    oci compute shape list -c "$C" --availability-domain "$ad" --all --query 'data[].shape' --raw-output 2>/dev/null \
+      | grep -q 'VM.Standard.E2.1.Micro' || { echo "  $ad: Micro в этой зоне нет"; continue; }
     echo "  $ad"
     launch VM.Standard.E2.1.Micro "$ad" && break
   done
