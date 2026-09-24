@@ -68,7 +68,8 @@ echo "  публичная подсеть готова"
 USERDATA=$(mktemp)
 cat > "$USERDATA" <<BOOT
 #!/bin/bash
-exec > /var/log/nura-setup.log 2>&1
+# Log to a file and to the serial console (readable via the OCI console-history API).
+exec > >(tee /var/log/nura-setup.log > /dev/console) 2>&1
 set -x
 # First boot: unattended-upgrades holds the apt lock for a few minutes — wait for it.
 for _ in \$(seq 1 120); do
