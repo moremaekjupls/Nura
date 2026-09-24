@@ -1,156 +1,125 @@
 import Database from 'better-sqlite3';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import fs from 'fs';
+import { fileURLToPath } from 'url';
+import { createHash } from 'crypto';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const dataDir =
-  process.env.DB_DIR ||
-  path.resolve(__dirname, '..', 'data');
+export const dataDir = process.env.DB_DIR || path.resolve(__dirname, '..', 'data');
+fs.mkdirSync(dataDir, { recursive: true });
+export const dbPath = path.join(dataDir, 'calotrack.db');
 
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true });
+export function openDb(file = dbPath): Database.Database {
+  const db = new Database(file);
+  db.pragma('journal_mode = WAL');
+  migrate(db);
+  db.pragma('foreign_keys = ON');
+  return db;
 }
 
-const dbPath = path.join(dataDir, 'calotrack.db');
-
-const db = new Database(dbPath);
-
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = OFF'); // off during migration
-
 // ---------------------------------------------------------------------------
-// Schema migration: detect old schema (session_id) and drop legacy tables
+// Migrations, tracked in PRAGMA user_version.
+// v1 = the schema production databases already have (built ad hoc by the
+// previous server, possibly missing later columns) — made idempotent here.
 // ---------------------------------------------------------------------------
 
-const tableInfo = db.prepare("PRAGMA table_info(entries)").all() as { name: string }[];
-const hasSessionId = tableInfo.some((col) => col.name === 'session_id');
+function columns(db: Database.Database, table: string): Set<string> {
+  return new Set((db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((c) => c.name));
+}
 
-if (hasSessionId) {
-  console.log('[db] Migrating schema: dropping legacy session-based tables');
+function v1Baseline(db: Database.Database) {
   db.exec(`
-    DROP TABLE IF EXISTS entries;
-    DROP TABLE IF EXISTS goals;
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')));
+    CREATE TABLE IF NOT EXISTS sessions (
+      token TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at TEXT DEFAULT (datetime('now')), expires_at TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS entries (
+      id TEXT PRIMARY KEY, user_id TEXT NOT NULL, date TEXT NOT NULL, name TEXT NOT NULL,
+      calories REAL NOT NULL, protein REAL NOT NULL, fat REAL NOT NULL, carbs REAL NOT NULL,
+      meal_type TEXT, time TEXT, created_at TEXT DEFAULT (datetime('now')));
+    CREATE TABLE IF NOT EXISTS goals (
+      user_id TEXT PRIMARY KEY, calories REAL NOT NULL DEFAULT 2000, protein REAL NOT NULL DEFAULT 150,
+      fat REAL NOT NULL DEFAULT 65, carbs REAL NOT NULL DEFAULT 250, updated_at TEXT DEFAULT (datetime('now')));
+    CREATE TABLE IF NOT EXISTS water_logs (
+      id TEXT PRIMARY KEY, user_id TEXT NOT NULL, date TEXT NOT NULL, ml REAL NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')));
+    CREATE TABLE IF NOT EXISTS rate_limits (key TEXT PRIMARY KEY, count INTEGER NOT NULL DEFAULT 0, reset_at INTEGER NOT NULL);
+    CREATE TABLE IF NOT EXISTS ai_usage (user_id TEXT NOT NULL, date TEXT NOT NULL, count INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (user_id, date));
+    CREATE INDEX IF NOT EXISTS idx_entries_user_date ON entries (user_id, date);
+    CREATE INDEX IF NOT EXISTS idx_water_logs_user_date ON water_logs (user_id, date);
   `);
+  if (!columns(db, 'goals').has('water_goal_ml')) {
+    db.exec(`ALTER TABLE goals ADD COLUMN water_goal_ml REAL NOT NULL DEFAULT 2000`);
+  }
+  const u = columns(db, 'users');
+  for (const [col, type] of [['name', 'TEXT'], ['height_cm', 'REAL'], ['weight_kg', 'REAL'], ['birth_year', 'INTEGER'], ['gender', 'TEXT']]) {
+    if (!u.has(col)) db.exec(`ALTER TABLE users ADD COLUMN ${col} ${type}`);
+  }
 }
 
-// ---------------------------------------------------------------------------
-// Create tables
-// ---------------------------------------------------------------------------
+/**
+ * v2: Telegram accounts (email/password become optional → users is rebuilt),
+ * activity/goal/lang on the profile, auto-goal flag, entry portions,
+ * weight log, and session tokens stored as SHA-256 hashes (existing
+ * plaintext tokens are hashed in place, so nobody gets logged out).
+ */
+function v2(db: Database.Database) {
+  db.exec(`
+    CREATE TABLE users_new (
+      id TEXT PRIMARY KEY,
+      email TEXT UNIQUE,
+      password_hash TEXT,
+      telegram_id INTEGER UNIQUE,
+      name TEXT,
+      gender TEXT,
+      birth_year INTEGER,
+      height_cm REAL,
+      weight_kg REAL,
+      activity TEXT,
+      goal_mode TEXT,
+      lang TEXT NOT NULL DEFAULT 'ru',
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    INSERT INTO users_new (id, email, password_hash, name, gender, birth_year, height_cm, weight_kg, created_at)
+      SELECT id, email, password_hash, name, gender, birth_year, height_cm, weight_kg, created_at FROM users;
+    DROP TABLE users;
+    ALTER TABLE users_new RENAME TO users;
 
-db.exec(`
-  CREATE TABLE IF NOT EXISTS users (
-    id            TEXT PRIMARY KEY,
-    email         TEXT NOT NULL UNIQUE,
-    password_hash TEXT NOT NULL,
-    created_at    TEXT DEFAULT (datetime('now'))
-  );
+    ALTER TABLE goals ADD COLUMN auto INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE entries ADD COLUMN portion TEXT;
 
-  CREATE TABLE IF NOT EXISTS sessions (
-    token      TEXT PRIMARY KEY,
-    user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    created_at TEXT DEFAULT (datetime('now')),
-    expires_at TEXT NOT NULL
-  );
+    CREATE TABLE IF NOT EXISTS weight_logs (
+      user_id TEXT NOT NULL, date TEXT NOT NULL, kg REAL NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')), PRIMARY KEY (user_id, date));
+    CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions (user_id);
+  `);
+  // Seed the weight log with each user's current profile weight.
+  db.exec(`INSERT OR IGNORE INTO weight_logs (user_id, date, kg)
+           SELECT id, date('now'), weight_kg FROM users WHERE weight_kg IS NOT NULL`);
 
-  CREATE TABLE IF NOT EXISTS entries (
-    id         TEXT PRIMARY KEY,
-    user_id    TEXT NOT NULL,
-    date       TEXT NOT NULL,
-    name       TEXT NOT NULL,
-    calories   REAL NOT NULL,
-    protein    REAL NOT NULL,
-    fat        REAL NOT NULL,
-    carbs      REAL NOT NULL,
-    meal_type  TEXT,
-    time       TEXT,
-    created_at TEXT DEFAULT (datetime('now'))
-  );
-
-  CREATE TABLE IF NOT EXISTS goals (
-    user_id    TEXT PRIMARY KEY,
-    calories   REAL NOT NULL DEFAULT 2000,
-    protein    REAL NOT NULL DEFAULT 150,
-    fat        REAL NOT NULL DEFAULT 65,
-    carbs      REAL NOT NULL DEFAULT 250,
-    updated_at TEXT DEFAULT (datetime('now'))
-  );
-
-  CREATE TABLE IF NOT EXISTS water_logs (
-    id         TEXT PRIMARY KEY,
-    user_id    TEXT NOT NULL,
-    date       TEXT NOT NULL,
-    ml         REAL NOT NULL,
-    created_at TEXT DEFAULT (datetime('now'))
-  );
-
-  CREATE TABLE IF NOT EXISTS rate_limits (
-    key        TEXT PRIMARY KEY,
-    count      INTEGER NOT NULL DEFAULT 0,
-    reset_at   INTEGER NOT NULL
-  );
-
-  CREATE TABLE IF NOT EXISTS ai_usage (
-    user_id    TEXT NOT NULL,
-    date       TEXT NOT NULL,
-    count      INTEGER NOT NULL DEFAULT 0,
-    PRIMARY KEY (user_id, date)
-  );
-
-  CREATE INDEX IF NOT EXISTS idx_entries_user_date
-    ON entries (user_id, date);
-
-  CREATE INDEX IF NOT EXISTS idx_water_logs_user_date
-    ON water_logs (user_id, date);
-
-  CREATE INDEX IF NOT EXISTS idx_sessions_token
-    ON sessions (token);
-`);
-
-// ---------------------------------------------------------------------------
-// Migration: add water_goal_ml to goals if it doesn't exist yet
-// (goals table may already exist in production without this column)
-// ---------------------------------------------------------------------------
-
-const goalsInfo = db.prepare("PRAGMA table_info(goals)").all() as { name: string }[];
-const hasWaterGoal = goalsInfo.some((col) => col.name === 'water_goal_ml');
-
-if (!hasWaterGoal) {
-  console.log('[db] Migrating schema: adding goals.water_goal_ml');
-  db.exec(`ALTER TABLE goals ADD COLUMN water_goal_ml REAL NOT NULL DEFAULT 2000;`);
+  const rows = db.prepare('SELECT token FROM sessions').all() as { token: string }[];
+  const upd = db.prepare('UPDATE sessions SET token = ? WHERE token = ?');
+  for (const { token } of rows) {
+    if (!/^[0-9a-f]{64}$/.test(token)) upd.run(createHash('sha256').update(token).digest('hex'), token);
+  }
 }
 
-// ---------------------------------------------------------------------------
-// Migration: profile fields on users (name, height, weight, birth year)
-// ---------------------------------------------------------------------------
+const MIGRATIONS: ((db: Database.Database) => void)[] = [v1Baseline, v2];
 
-const usersInfo = db.prepare("PRAGMA table_info(users)").all() as { name: string }[];
-const userCols = new Set(usersInfo.map((col) => col.name));
-
-if (!userCols.has('name')) {
-  console.log('[db] Migrating schema: adding users.name');
-  db.exec(`ALTER TABLE users ADD COLUMN name TEXT;`);
+export function migrate(db: Database.Database) {
+  const current = db.pragma('user_version', { simple: true }) as number;
+  if (current >= MIGRATIONS.length) return;
+  db.pragma('foreign_keys = OFF'); // table rebuilds need it off; cannot change inside a transaction
+  for (let v = current; v < MIGRATIONS.length; v++) {
+    db.transaction(() => {
+      MIGRATIONS[v](db);
+      db.pragma(`user_version = ${v + 1}`);
+    })();
+    console.log(`[db] migrated to v${v + 1}`);
+  }
+  const broken = db.pragma('foreign_key_check') as unknown[];
+  if (broken.length) console.warn('[db] foreign_key_check reported', broken.length, 'rows');
 }
-if (!userCols.has('height_cm')) {
-  console.log('[db] Migrating schema: adding users.height_cm');
-  db.exec(`ALTER TABLE users ADD COLUMN height_cm REAL;`);
-}
-if (!userCols.has('weight_kg')) {
-  console.log('[db] Migrating schema: adding users.weight_kg');
-  db.exec(`ALTER TABLE users ADD COLUMN weight_kg REAL;`);
-}
-if (!userCols.has('birth_year')) {
-  console.log('[db] Migrating schema: adding users.birth_year');
-  db.exec(`ALTER TABLE users ADD COLUMN birth_year INTEGER;`);
-}
-if (!userCols.has('gender')) {
-  console.log('[db] Migrating schema: adding users.gender');
-  db.exec(`ALTER TABLE users ADD COLUMN gender TEXT;`);
-}
-
-db.pragma('foreign_keys = ON');
-
-export { dataDir, dbPath };
-export default db;
