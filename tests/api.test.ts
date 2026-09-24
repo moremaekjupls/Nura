@@ -178,6 +178,10 @@ describe('API', () => {
     expect((await call('POST', '/api/auth/login', { email: 'tg@nura.uz', password: 'password2' })).status).toBe(200);
   });
 
+  it('health check is public', async () => {
+    expect(await call('GET', '/api/health')).toEqual({ status: 200, body: { ok: true } });
+  });
+
   it('unknown API route is a JSON 404; AI without key is 503', async () => {
     expect((await call('GET', '/api/nope', undefined, token)).status).toBe(404);
     expect((await call('POST', '/api/ai/text', { text: 'самса и чай' }, token)).status).toBe(503);

@@ -345,6 +345,11 @@ export function createApp(db: Database.Database, opts: AppOptions = {}) {
     res.status(204).end();
   });
 
+  app.get('/api/health', (_req, res) => {
+    db.prepare('SELECT 1').get();
+    res.json({ ok: true });
+  });
+
   app.get('/api/config', (_req, res) => {
     res.json({ botUsername: opts.bot?.username ?? null, passwordReset: !!opts.mailer });
   });

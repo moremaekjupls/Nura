@@ -39,17 +39,29 @@ pnpm check        # tsc
 pnpm build && pnpm start
 ```
 
+## Продакшен
+
+Oracle Cloud Always Free: одна виртуальная машина, Docker Compose и Caddy с автоматическим HTTPS.
+Пошагово: [deploy/ORACLE.md](deploy/ORACLE.md). Коротко: на сервере Ubuntu выполнить
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/moremaekjupls/Nura/main/deploy/setup.sh | bash
+```
+
+Затем заполнить `~/nura/.env` и запустить `bash ~/nura/deploy/update.sh`. Пуш в `main` может выкатываться автоматически (GitHub Actions, раздел 7 инструкции).
+
 ## Переменные окружения
 
 | Переменная | Зачем |
 | --- | --- |
-| `APP_URL` | Публичный адрес, например `https://nura.up.railway.app`. Нужен для ссылок сброса пароля и бота. |
+| `APP_URL` | Публичный адрес, например `https://nura.uz`. Нужен для ссылок сброса пароля и бота. |
 | `GEMINI_API_KEY` | Распознавание фото и текста. Без неё кнопки ИИ отвечают «не настроено». |
 | `TELEGRAM_BOT_TOKEN` | Вход из Mini App, напоминания, вебхук бота. |
 | `RESEND_API_KEY` | Письма для сброса пароля (resend.com). |
 | `MAIL_FROM` | Отправитель, например `Nura <noreply@ваш-домен>`. Домен должен быть подтверждён в Resend; без него Resend шлёт только на ваш собственный адрес. |
 | `ADMIN_KEY` | `GET /api/admin/stats` и `/api/admin/backup`, ключ в заголовке `X-Admin-Key`. |
-| `DB_DIR` | Папка с SQLite (на Railway — примонтированный volume). |
+| `DOMAIN` | Домен для Caddy (или `<ip>.sslip.io`, пока нет своего). |
+| `DB_DIR` | Папка с SQLite; в Docker Compose это том `nura-data`. |
 
 ## Telegram Mini App
 
