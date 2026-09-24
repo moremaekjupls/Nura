@@ -15,8 +15,8 @@ if ! grep -qi ubuntu /etc/os-release; then
 fi
 
 say "Обновляю систему и ставлю git"
-sudo apt-get update -y
-sudo DEBIAN_FRONTEND=noninteractive apt-get install -y git curl ca-certificates iptables-persistent
+sudo apt-get -o DPkg::Lock::Timeout=600 update -y
+sudo DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=600 install -y git curl ca-certificates iptables-persistent
 
 if ! command -v docker >/dev/null 2>&1; then
   say "Ставлю Docker"
