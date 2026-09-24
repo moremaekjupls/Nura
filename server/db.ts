@@ -7,10 +7,10 @@ import { createHash } from 'crypto';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export const dataDir = process.env.DB_DIR || path.resolve(__dirname, '..', 'data');
-fs.mkdirSync(dataDir, { recursive: true });
 export const dbPath = path.join(dataDir, 'calotrack.db');
 
 export function openDb(file = dbPath): Database.Database {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
   const db = new Database(file);
   db.pragma('journal_mode = WAL');
   migrate(db);
