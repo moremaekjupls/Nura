@@ -143,6 +143,41 @@ describe('API', () => {
     expect((await call('POST', '/api/auth/telegram', { initData: initData.replace('777', '778') })).status).toBe(401);
   });
 
+  it('links a Telegram account into an existing email account, moving its data', async () => {
+    const reg = await call('POST', '/api/auth/register', { email: 'pwa@nura.uz', password: 'password1' });
+    const emailToken = reg.body.token;
+    await call('POST', '/api/entries', { entries: [{ date: '2026-09-20', name: 'Лагман', calories: 480, protein: 20, fat: 16, carbs: 58, mealType: 'lunch' }] }, emailToken);
+
+    const initData = signInitData(BOT, {
+      auth_date: String(Math.floor(Date.now() / 1000)),
+      user: JSON.stringify({ id: 555, first_name: 'Нодира' }),
+    });
+    const tgToken = (await call('POST', '/api/auth/telegram', { initData })).body.token;
+    await call('POST', '/api/entries', { entries: [{ date: '2026-09-21', name: 'Самса', calories: 290, protein: 9, fat: 18, carbs: 22, mealType: 'snack' }] }, tgToken);
+    await call('POST', '/api/weight', { date: '2026-09-21', kg: 61 }, tgToken);
+
+    expect((await call('POST', '/api/auth/link-email', { email: 'pwa@nura.uz', password: 'wrong' }, tgToken)).status).toBe(401);
+    const link = await call('POST', '/api/auth/link-email', { email: 'pwa@nura.uz', password: 'password1' }, tgToken);
+    expect(link.status).toBe(200);
+    expect(link.body.user).toMatchObject({ id: reg.body.user.id, email: 'pwa@nura.uz', telegram: true });
+    expect((await call('GET', '/api/auth/me', undefined, tgToken)).status).toBe(401); // old Telegram-only session is gone
+
+    const h = await call('GET', '/api/history?from=2026-09-20&to=2026-09-21', undefined, link.body.token);
+    expect(h.body.days.map((d: { calories: number }) => d.calories)).toEqual([480, 290]);
+    expect((await call('GET', '/api/weight', undefined, emailToken)).body).toEqual([{ date: '2026-09-21', kg: 61 }]);
+    // Next Telegram login lands in the merged account.
+    expect((await call('POST', '/api/auth/telegram', { initData })).body.user.id).toBe(reg.body.user.id);
+  });
+
+  it('lets a Telegram user add email + password', async () => {
+    const initData = signInitData(BOT, { auth_date: String(Math.floor(Date.now() / 1000)), user: JSON.stringify({ id: 556 }) });
+    const tok = (await call('POST', '/api/auth/telegram', { initData })).body.token;
+    expect((await call('POST', '/api/auth/set-email', { email: 'pwa@nura.uz', password: 'password1' }, tok)).status).toBe(409);
+    const r = await call('POST', '/api/auth/set-email', { email: 'tg@nura.uz', password: 'password2' }, tok);
+    expect(r.body.user).toMatchObject({ email: 'tg@nura.uz', telegram: true, hasPassword: true });
+    expect((await call('POST', '/api/auth/login', { email: 'tg@nura.uz', password: 'password2' })).status).toBe(200);
+  });
+
   it('unknown API route is a JSON 404; AI without key is 503', async () => {
     expect((await call('GET', '/api/nope', undefined, token)).status).toBe(404);
     expect((await call('POST', '/api/ai/text', { text: 'самса и чай' }, token)).status).toBe(503);

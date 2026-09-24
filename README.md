@@ -55,7 +55,7 @@ pnpm build && pnpm start
 3. Bot Settings → Menu Button → тот же URL, текст «Открыть Nura».
 
 Mini App авторизуется по подписанному `initData` (HMAC по токену бота) и получает Bearer-токен.
-В PWA вход по email, сессия в HttpOnly-cookie. Аккаунты Telegram и email пока раздельные.
+В PWA вход по email, сессия в HttpOnly-cookie. В профиле Mini App можно привязать существующий email-аккаунт (записи из Telegram переносятся в него) или добавить email и пароль к Telegram-аккаунту.
 
 ## Данные и безопасность
 

@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { Link } from 'wouter';
 import { ChevronRight } from 'lucide-react';
 import type { Goal } from '@shared/nutrition';
-import { api } from '@/lib/api';
+import { api, setToken, type Me } from '@/lib/api';
+import { useQueryClient } from '@tanstack/react-query';
 import { todayISO } from '@/lib/dates';
 import { errorText } from '@/lib/format';
 import { useI18n, type Lang } from '@/lib/i18n';
@@ -21,7 +22,7 @@ export default function Profile() {
   const { user, setUser, logout } = useAuth();
   const q = useProfile();
   const saveProfile = useSaveProfile();
-  const [sheet, setSheet] = useState<null | 'body' | 'goal' | 'password' | 'delete'>(null);
+  const [sheet, setSheet] = useState<null | 'body' | 'goal' | 'password' | 'delete' | 'link' | 'set-email'>(null);
   const fail = (e: unknown) => toast.show(errorText(e, i18n), { tone: 'error' });
 
   if (!q.data) {
@@ -75,7 +76,7 @@ export default function Profile() {
           {num(goal.calories)} <span className="muted" style={{ fontSize: 20, fontWeight: 600 }}>{t('unit.kcal')}</span>
         </div>
         <div className="small muted">
-          {goal.auto && complete ? t('profile.formula') : t('profile.manualNote')} · {t('profile.water')} {num(goal.water / 1000, 1)} {t('unit.l')}
+          {!goal.auto ? t('profile.manualNote') : complete ? t('profile.formula') : t('profile.defaultNote')} · {t('profile.water')} {num(goal.water / 1000, 1)} {t('unit.l')}
         </div>
         <MacroSplit p={goal.protein} f={goal.fat} c={goal.carbs} />
 
@@ -120,6 +121,23 @@ export default function Profile() {
         </>
       )}
 
+      {p.telegram && !p.email && (
+        <>
+          <div className="section-title"><h2>{t('profile.emailSection')}</h2></div>
+          <p className="small muted" style={{ margin: '-4px 4px 8px' }}>{t('profile.emailHint')}</p>
+          <section className="card list mb-l">
+            <button className="row" onClick={() => setSheet('link')}>
+              <span className="grow"><span className="title" style={{ display: 'block' }}>{t('profile.linkExisting')}</span><span className="sub">{t('profile.linkHint')}</span></span>
+              <ChevronRight size={18} className="muted" aria-hidden />
+            </button>
+            <button className="row" onClick={() => setSheet('set-email')}>
+              <span className="grow">{t('profile.addEmail')}</span>
+              <ChevronRight size={18} className="muted" aria-hidden />
+            </button>
+          </section>
+        </>
+      )}
+
       <div className="section-title"><h2>{t('profile.settings')}</h2></div>
       <section className="card list mb">
         <div className="row">
@@ -144,6 +162,8 @@ export default function Profile() {
       <GoalSheet open={sheet === 'goal'} onClose={() => setSheet(null)} goal={goal} />
       <PasswordSheet open={sheet === 'password'} onClose={() => setSheet(null)} hasPassword={!!user?.hasPassword} />
       <DeleteSheet open={sheet === 'delete'} onClose={() => setSheet(null)} />
+      <EmailSheet mode="link" open={sheet === 'link'} onClose={() => setSheet(null)} />
+      <EmailSheet mode="set" open={sheet === 'set-email'} onClose={() => setSheet(null)} />
     </main>
   );
 }
@@ -281,6 +301,56 @@ function DeleteSheet({ open, onClose }: { open: boolean; onClose(): void }) {
         </div>
       }>
       <p style={{ margin: '4px 4px 8px', fontSize: 16, lineHeight: 1.45 }}>{t('profile.deleteConfirm')}</p>
+    </Sheet>
+  );
+}
+
+function EmailSheet({ mode, open, onClose }: { mode: 'link' | 'set'; open: boolean; onClose(): void }) {
+  const i18n = useI18n();
+  const { t } = i18n;
+  const toast = useToast();
+  const qc = useQueryClient();
+  const { setUser } = useAuth();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { if (!open) { setEmail(''); setPassword(''); } }, [open]);
+
+  const submit = async () => {
+    setBusy(true);
+    try {
+      if (mode === 'link') {
+        const r = await api<{ user: Me; token: string }>('/api/auth/link-email', { method: 'POST', body: { email, password } });
+        setToken(r.token);
+        qc.clear(); // the account itself changed — nothing cached may carry over
+        setUser(r.user);
+        toast.show(t('profile.linked'));
+      } else {
+        const r = await api<{ user: Me }>('/api/auth/set-email', { method: 'POST', body: { email, password } });
+        setUser(r.user);
+        qc.invalidateQueries({ queryKey: ['profile'] });
+        toast.show(t('profile.emailAdded'));
+      }
+      onClose();
+    } catch (e) {
+      toast.show(errorText(e, i18n), { tone: 'error' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Sheet open={open} onClose={onClose} title={mode === 'link' ? t('profile.linkExisting') : t('profile.addEmail')} compact
+      footer={<button className="btn block" disabled={busy || !email || password.length < (mode === 'set' ? 8 : 1)} onClick={submit}>
+        {mode === 'link' ? t('auth.submitLogin') : t('common.save')}</button>}>
+      <div className="stack">
+        {mode === 'link' && <p className="small muted" style={{ margin: '0 4px' }}>{t('profile.linkHint')}</p>}
+        <label className="field"><span>{t('auth.email')}</span>
+          <input className="input" type="email" inputMode="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} /></label>
+        <label className="field"><span>{t('auth.password')}</span>
+          <input className="input" type="password" autoComplete={mode === 'link' ? 'current-password' : 'new-password'} value={password} onChange={(e) => setPassword(e.target.value)} /></label>
+        {mode === 'set' && <span className="small muted">{t('auth.passwordHint')}</span>}
+      </div>
     </Sheet>
   );
 }

@@ -388,6 +388,50 @@ export function createApp(db: Database.Database, opts: AppOptions = {}) {
     res.status(204).end();
   }));
 
+  /**
+   * Telegram user adds an email + password to the same account, so they can
+   * also sign in from the PWA.
+   */
+  app.post('/api/auth/set-email', authLimit, h(async (req, res) => {
+    const { email, password } = parse(credentials, req.body);
+    const u = getUser(req.userId)!;
+    if (u.email) throw new HttpError(400, 'Email уже указан');
+    if (q.userByEmail.get(email)) throw new HttpError(409, 'Этот email уже зарегистрирован — привяжите существующий аккаунт');
+    db.prepare('UPDATE users SET email = ?, password_hash = ? WHERE id = ?').run(email, await hashPassword(password), u.id);
+    res.json({ user: me(getUser(u.id)!) });
+  }));
+
+  /**
+   * Telegram user who already has an email account (e.g. from the PWA): move
+   * everything logged under the Telegram account into the email account,
+   * attach the Telegram ID to it and drop the Telegram-only account.
+   */
+  app.post('/api/auth/link-email', authLimit, h(async (req, res) => {
+    const { email, password } = parse(loginInput, req.body);
+    const tgUser = getUser(req.userId)!;
+    if (tgUser.telegram_id == null || tgUser.email) throw new HttpError(400, 'Привязка доступна только для входа через Telegram');
+    const target = q.userByEmail.get(email) as UserRow | undefined;
+    if (!target || !(await verifyPassword(password, target.password_hash))) throw new HttpError(401, 'Неверный email или пароль');
+    if (target.telegram_id != null) throw new HttpError(409, 'К этому аккаунту уже привязан другой Telegram');
+
+    const from = tgUser.id;
+    const to = target.id;
+    db.transaction(() => {
+      db.prepare('UPDATE entries SET user_id = ? WHERE user_id = ?').run(to, from);
+      db.prepare('UPDATE water_logs SET user_id = ? WHERE user_id = ?').run(to, from);
+      // Same-day weights: the email account's value wins.
+      db.prepare('INSERT OR IGNORE INTO weight_logs (user_id, date, kg, created_at) SELECT ?, date, kg, created_at FROM weight_logs WHERE user_id = ?').run(to, from);
+      for (const t of ['weight_logs', 'goals', 'ai_usage', 'sessions']) db.prepare(`DELETE FROM ${t} WHERE user_id = ?`).run(from);
+      db.prepare('DELETE FROM users WHERE id = ?').run(from);
+      db.prepare('UPDATE users SET telegram_id = ? WHERE id = ?').run(tgUser.telegram_id, to);
+      const latest = q.latestWeight.get(to) as { kg: number } | undefined;
+      if (latest) q.setUserWeight.run(latest.kg, to);
+    })();
+    refreshAutoGoal(to);
+    const token = startSession(res, to);
+    res.json({ user: me(getUser(to)!), token });
+  }));
+
   app.delete('/api/account', (req, res) => {
     const id = req.userId;
     db.transaction(() => {
